@@ -418,6 +418,17 @@ FodyWeavers.xsd
 # Local History for Visual Studio Code
 .history/
 
+# Local secrets (Entra ID / UniFi credentials) — never commit real values.
+# appsettings.json and appsettings.example.json stay tracked; this doesn't.
+**/appsettings.Development.json
+**/appsettings.*.local.json
+
+# SQLite data file — contains real guest authorization records (Entra
+# object IDs, UPNs) once the app has run, never sample/fixture data.
+**/data/*.db
+**/data/*.db-shm
+**/data/*.db-wal
+
 # Built Visual Studio Code Extensions
 *.vsix
 
