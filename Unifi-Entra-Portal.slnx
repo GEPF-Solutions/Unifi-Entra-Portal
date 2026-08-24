@@ -1,0 +1,7 @@
+<Solution>
+  <Project Path="unifi-entra-portal.client/unifi-entra-portal.client.esproj">
+    <Build />
+    <Deploy />
+  </Project>
+  <Project Path="Unifi-Entra-Portal.Server/Unifi-Entra-Portal.Server.csproj" />
+</Solution>
