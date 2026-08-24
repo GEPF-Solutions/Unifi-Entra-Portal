@@ -1,58 +1,67 @@
-import { useEffect, useState } from 'react';
 import './App.css';
-
-interface Forecast {
-    date: string;
-    temperatureC: number;
-    temperatureF: number;
-    summary: string;
-}
+import { brandingConfig } from './branding/config';
+import { useAuth } from './hooks/useAuth';
+import { useGuestAuthorization } from './hooks/useGuestAuthorization';
+import { usePortalRedirectParams } from './hooks/usePortalRedirectParams';
 
 function App() {
-    const [forecasts, setForecasts] = useState<Forecast[]>();
+    const { clientMac, originalUrl } = usePortalRedirectParams();
+    const { isAuthenticated, name, loading, buildLoginUrl } = useAuth();
+    const authorizationStatus = useGuestAuthorization(isAuthenticated, clientMac);
+    const displayName = name ?? 'there';
 
-    useEffect(() => {
-        populateWeatherData();
-    }, []);
-
-    const contents = forecasts === undefined
-        ? <p><em>Loading... Please refresh once the ASP.NET backend has started. See <a href="https://aka.ms/jspsintegrationreact">https://aka.ms/jspsintegrationreact</a> for more details.</em></p>
-        : <table className="table table-striped" aria-labelledby="tableLabel">
-            <thead>
-                <tr>
-                    <th>Date</th>
-                    <th>Temp. (C)</th>
-                    <th>Temp. (F)</th>
-                    <th>Summary</th>
-                </tr>
-            </thead>
-            <tbody>
-                {forecasts.map(forecast =>
-                    <tr key={forecast.date}>
-                        <td>{forecast.date}</td>
-                        <td>{forecast.temperatureC}</td>
-                        <td>{forecast.temperatureF}</td>
-                        <td>{forecast.summary}</td>
-                    </tr>
-                )}
-            </tbody>
-        </table>;
+    if (loading) {
+        return (
+            <div className="portal">
+                <p>Loading…</p>
+            </div>
+        );
+    }
 
     return (
-        <div>
-            <h1 id="tableLabel">Weather forecast</h1>
-            <p>This component demonstrates fetching data from the server.</p>
-            {contents}
+        <div className="portal">
+            {brandingConfig.logoUrl && (
+                <img className="portal-logo" src={brandingConfig.logoUrl} alt={brandingConfig.orgName} />
+            )}
+            <h1>{brandingConfig.orgName}</h1>
+
+            {!isAuthenticated && (
+                <>
+                    <p>{brandingConfig.welcomeText}</p>
+                    <a
+                        className="portal-button"
+                        href={buildLoginUrl(window.location.pathname + window.location.search)}
+                    >
+                        Sign in with Microsoft
+                    </a>
+                </>
+            )}
+
+            {isAuthenticated && !clientMac && (
+                <p>
+                    You're signed in as {displayName}, but no device was detected to authorize. Please reconnect to the
+                    guest Wi-Fi and try again.
+                </p>
+            )}
+
+            {isAuthenticated && clientMac && authorizationStatus === 'authorizing' && <p>Connecting your device…</p>}
+
+            {isAuthenticated && clientMac && authorizationStatus === 'authorized' && (
+                <>
+                    <p>You're connected, {displayName}. You can now browse normally.</p>
+                    {originalUrl && (
+                        <a className="portal-button" href={originalUrl}>
+                            Continue browsing
+                        </a>
+                    )}
+                </>
+            )}
+
+            {isAuthenticated && clientMac && authorizationStatus === 'error' && (
+                <p>Something went wrong authorizing your device. Please try reconnecting to the guest Wi-Fi.</p>
+            )}
         </div>
     );
-
-    async function populateWeatherData() {
-        const response = await fetch('weatherforecast');
-        if (response.ok) {
-            const data = await response.json();
-            setForecasts(data);
-        }
-    }
 }
 
 export default App;
