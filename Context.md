@@ -46,29 +46,41 @@ that org.
    (see persistence section below).
 
 ## UniFi API specifics to get right
-- **Dedicated local admin account** on the controller for API calls — cloud
-  SSO/MFA accounts don't work for unattended API logins. Scope it narrowly.
-- **CSRF token handling is mandatory**: login response returns an
-  `X-CSRF-Token` header/cookie that must be captured and sent on every
-  subsequent POST (e.g. the authorize-guest call), or you get a silent 403.
-- **Site ID**: use the actual site slug, not assuming `"default"` if there
-  are multiple sites — using the wrong one throws `NoSiteContext`.
-- **Endpoint shape** (classic Network Application API):
-  `POST /api/s/{site}/cmd/stamgr` with body
-  `{"cmd":"authorize-guest","mac":"<mac>","minutes":<n>}` (and
-  `unauthorize-guest` for revocation), headers `cookie: TOKEN=...` and
-  `X-Csrf-Token: ...`. On UniFi OS consoles the path is prefixed with
-  `/proxy/network`.
-- **Reference implementations worth reading (not necessarily depending on)**:
-  - [`KoenZomers/UniFiApi`](https://github.com/KoenZomers/UniFiApi) — a .NET
-    library that already handles the login/CSRF/authorize-guest flow. Worth
-    using directly or at least as a reference instead of hand-rolling it.
-  - [`Art-of-WiFi/UniFi-API-client`](https://github.com/Art-of-WiFi/UniFi-API-client)
-    — free PHP client library, useful for confirming exact request shapes.
-  - [`Jxhoo/UnifiCP_EntraID`](https://github.com/Jxhoo/UnifiCP_EntraID) — a
-    small existing PHP captive portal doing this exact thing (Entra auth +
-    UniFi hotspot). Not something to depend on (PHP, looks unmaintained,
-    minimal), but useful as a working reference for the flow.
+- **This deployment's console is enrolled in UniFi Fabric**, which does not
+  support local admin accounts at all — the originally planned "dedicated
+  local admin account + cookie/CSRF login" approach (classic
+  `/api/s/{site}/cmd/stamgr`) is a dead end here. Superseded by **API key
+  auth against the official UniFi Network Integration API** instead — see
+  `UniFiSettings`/`UniFiClientService` for the actual implementation. If a
+  future deployment targets a non-Fabric console, that classic approach
+  remains an option, but isn't what this codebase does.
+- **Auth**: `X-API-Key: <key>` header, no login/session/CSRF handshake at
+  all. Key is created either locally on the console (Network app → Settings
+  → Control Plane → Integrations) or via Site Manager
+  (unifi.ui.com → Settings → API Keys) — the latter is required whenever
+  this app has no direct network path to the controller (the normal case
+  for an off-site-hosted portal), and routes calls through Ubiquiti's cloud
+  connector (`api.ui.com`) rather than hitting the console directly.
+- **Site ID is a UUID** under this API, not the classic "default" slug —
+  fetch it from `GET .../network/integration/v1/sites` and match on
+  `internalReference`.
+- **Clients are addressed by an internal UUID, not MAC** — authorizing a
+  guest requires first looking up that UUID by filtering the site's
+  connected-clients list on `macAddress.eq('<mac>')`, then
+  `POST .../sites/{siteId}/clients/{clientId}/actions` with
+  `{"action":"AUTHORIZE_GUEST_ACCESS","timeLimitMinutes":<n>}` (or
+  `UNAUTHORIZE_GUEST_ACCESS` to revoke, no time limit needed).
+- **Base URL shape**:
+  `https://api.ui.com/v1/connector/consoles/{consoleId}/proxy/network/integration/v1/...`
+  when using the cloud connector (`consoleId` from `GET https://api.ui.com/v1/hosts`),
+  or `https://{consoleIP}/proxy/network/integration/v1/...` for direct
+  local/VPN access.
+- Full reference: https://developer.ui.com/network (the "Execute Client
+  Action", "List Connected Clients", and "Connector" pages cover everything
+  above). Do not fetch `ai-gettingstarted.md`-style pages linked from that
+  site through an automated summarizer — one such page triggered a
+  prompt-injection refusal when fetched that way during this project's
+  development; reading the rendered docs directly in a browser was fine.
 - Confirm the controller is patched past **CVE-2026-54405** (fixed in UniFi
   Network 10.4.57+) before poking at the API surface.
 
@@ -105,8 +117,8 @@ that org.
 
 ## Open source considerations (this will be published)
 - **Nothing fire-department-specific in the repo.** Tenant ID, client
-  ID/secret, redirect URIs, UniFi controller URL/site ID/local admin
-  credentials, any Entra group ID used for gating — all via environment
+  ID/secret, redirect URIs, UniFi console/site IDs, the UniFi API key,
+  any Entra group ID used for gating — all via environment
   variables or `appsettings.Development.json` (gitignored), never
   committed. Ship `appsettings.example.json` with placeholders.
 - Branding (logo, org name, colors, welcome text) should be config-driven /
