@@ -60,11 +60,47 @@ public class PortalController : ControllerBase
             return Forbid(CookieAuthenticationDefaults.AuthenticationScheme);
         }
 
-        await _uniFiClient.AuthorizeGuestAsync(request.Mac, cancellationToken);
+        // UniFi's own convention (and the equipment we've observed) uses
+        // lowercase, colon-separated MACs — normalizing here keeps this
+        // value consistent everywhere it's used downstream (the UniFi
+        // filter lookup and the DB's unique key), regardless of the casing
+        // the redirect's "id" query param happened to arrive in.
+        var mac = request.Mac.ToLowerInvariant();
 
-        var userObjectId = User.GetObjectId() ?? string.Empty;
+        var userObjectId = User.GetObjectId();
+        if (string.IsNullOrEmpty(userObjectId))
+        {
+            // Should never happen for a properly configured Entra sign-in,
+            // but without a stable user identity we can't record who this
+            // device belongs to for later revalidation/offboarding — fail
+            // closed rather than authorizing an untrackable device.
+            _logger.LogError("Signed-in user for {User} has no oid claim; refusing to authorize a device without a stable identity", User.Identity?.Name);
+            return StatusCode(StatusCodes.Status500InternalServerError);
+        }
+
+        try
+        {
+            await _uniFiClient.AuthorizeGuestAsync(mac, cancellationToken);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Failed to authorize {Mac} on UniFi for {User}", mac, User.Identity?.Name);
+            return StatusCode(StatusCodes.Status502BadGateway, new { success = false, error = "unifi_authorize_failed" });
+        }
+
         var userPrincipalName = User.FindFirst("preferred_username")?.Value;
-        await _authorizedGuestRepository.UpsertAsync(request.Mac, userObjectId, userPrincipalName, cancellationToken);
+        try
+        {
+            await _authorizedGuestRepository.UpsertAsync(mac, userObjectId, userPrincipalName, cancellationToken);
+        }
+        catch (Exception ex)
+        {
+            // The guest is already authorized on the network at this point
+            // — don't fail the request over a tracking-only write, but log
+            // loudly, since this guest won't be included in the next
+            // revalidation/offboarding pass until this is resolved.
+            _logger.LogError(ex, "UniFi authorized {Mac} but persisting the record failed; this guest won't be tracked for revalidation until this is resolved", mac);
+        }
 
         return Ok(new { success = true });
     }

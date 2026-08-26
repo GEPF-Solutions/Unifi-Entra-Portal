@@ -1,6 +1,8 @@
 using System.Security.Claims;
+using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
+using Moq;
 using Unifi_Entra_Portal.Server.Infrastructure;
 using Unifi_Entra_Portal.Server.Services;
 
@@ -50,5 +52,28 @@ public class GatingServiceTests
         var service = CreateService("group-1");
 
         Assert.False(service.IsUserAllowed(UserWithGroups()));
+    }
+
+    [Fact]
+    public void IsUserAllowed_WhenGroupsOverageClaimPresent_FailsClosedAndLogsAWarning()
+    {
+        var logger = new Mock<ILogger<GatingService>>();
+        var settings = Options.Create(new GatingSettings { AllowedGroupIds = ["group-1"] });
+        var service = new GatingService(settings, logger.Object);
+
+        // Entra's groups-overage shape: no "groups" claim, an opaque
+        // "_claim_names" claim pointing at Graph instead.
+        var identity = new ClaimsIdentity([new Claim("_claim_names", "{\"groups\":\"src1\"}")], authenticationType: "Test");
+        var user = new ClaimsPrincipal(identity);
+
+        Assert.False(service.IsUserAllowed(user));
+        logger.Verify(
+            l => l.Log(
+                LogLevel.Warning,
+                It.IsAny<EventId>(),
+                It.IsAny<It.IsAnyType>(),
+                null,
+                It.IsAny<Func<It.IsAnyType, Exception?, string>>()),
+            Times.Once);
     }
 }

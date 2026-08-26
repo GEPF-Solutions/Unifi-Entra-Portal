@@ -33,11 +33,34 @@ public class GuestRevalidationBackgroundService : BackgroundService
     /// <inheritdoc />
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
-        using var timer = new PeriodicTimer(TimeSpan.FromHours(_settings.IntervalHours));
+        var interval = TimeSpan.FromHours(_settings.IntervalHours);
+        if (_settings.IntervalHours <= 0)
+        {
+            _logger.LogWarning(
+                "Revalidation:IntervalHours was {ConfiguredValue}, which is invalid; defaulting to 24 hours instead of crashing on startup",
+                _settings.IntervalHours);
+            interval = TimeSpan.FromHours(24);
+        }
+
+        using var timer = new PeriodicTimer(interval);
 
         do
         {
-            await RevalidateAllAsync(stoppingToken);
+            // ASP.NET Core's default hosted-service behavior is to stop the
+            // entire application if a BackgroundService's ExecuteAsync
+            // throws — an unhandled failure here (DB unreachable, a bad
+            // AzureAd secret breaking Graph token acquisition, etc.) would
+            // otherwise take down guest sign-in along with revalidation.
+            // RevalidateOneAsync already isolates per-guest failures; this
+            // isolates whole-cycle failures the same way.
+            try
+            {
+                await RevalidateAllAsync(stoppingToken);
+            }
+            catch (Exception ex) when (ex is not OperationCanceledException)
+            {
+                _logger.LogError(ex, "Revalidation pass failed; will retry next cycle");
+            }
         }
         while (await timer.WaitForNextTickAsync(stoppingToken));
     }
@@ -58,27 +81,46 @@ public class GuestRevalidationBackgroundService : BackgroundService
         var uniFiClient = scope.ServiceProvider.GetRequiredService<IUniFiClientService>();
 
         var guests = await repository.GetAllAsync(cancellationToken);
+
+        // A user with multiple devices produces one AuthorizedGuest row per
+        // device, all sharing the same UserObjectId. Their eligibility
+        // (account enabled + group membership) doesn't vary by device, so
+        // cache the check per user for this pass — a member with 3 devices
+        // costs one Graph lookup here instead of three identical ones.
+        // Caching the Task itself (not just its result) means a failure is
+        // shared too: every device is correctly treated as "couldn't
+        // re-validate this cycle" rather than only the first one checked.
+        var eligibilityByUser = new Dictionary<string, Task<bool>>();
+
         foreach (var guest in guests)
         {
-            await RevalidateOneAsync(guest, repository, eligibilityService, uniFiClient, cancellationToken);
+            if (!eligibilityByUser.TryGetValue(guest.UserObjectId, out var eligibilityTask))
+            {
+                eligibilityTask = eligibilityService.IsEligibleAsync(guest.UserObjectId, cancellationToken);
+                eligibilityByUser[guest.UserObjectId] = eligibilityTask;
+            }
+
+            await RevalidateOneAsync(guest, eligibilityTask, repository, uniFiClient, cancellationToken);
         }
     }
 
     /// <summary>
-    /// Re-validates a single guest, swallowing (and logging) any failure so
-    /// one problematic lookup — e.g. Graph throttling — doesn't stop the
-    /// rest of the batch from being processed this cycle.
+    /// Re-validates a single guest device against an already-started (and
+    /// possibly shared, see <see cref="RevalidateAllAsync"/>) eligibility
+    /// check, swallowing (and logging) any failure so one problematic
+    /// lookup — e.g. Graph throttling — doesn't stop the rest of the batch
+    /// from being processed this cycle.
     /// </summary>
     private async Task RevalidateOneAsync(
         AuthorizedGuest guest,
+        Task<bool> eligibilityTask,
         IAuthorizedGuestRepository repository,
-        IGuestEligibilityService eligibilityService,
         IUniFiClientService uniFiClient,
         CancellationToken cancellationToken)
     {
         try
         {
-            var isEligible = await eligibilityService.IsEligibleAsync(guest.UserObjectId, cancellationToken);
+            var isEligible = await eligibilityTask;
             if (isEligible)
             {
                 await repository.MarkValidatedAsync(guest.MacAddress, cancellationToken);

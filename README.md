@@ -82,6 +82,14 @@ You'll need:
 - **A gating rule**, if you want one — `Gating.AllowedGroupIds` in config
   restricts access to specific Entra security groups. Leave it empty to
   allow any account in the tenant.
+- **`ForwardedHeaders.TrustAllProxies = true`** (e.g. `ForwardedHeaders__TrustAllProxies=true`),
+  but only if this instance sits exclusively behind a reverse proxy/ingress
+  that strips client-supplied `X-Forwarded-*` headers before forwarding its
+  own (an OpenShift Route, most Kubernetes Ingress controllers). It's `false`
+  by default because trusting these headers unconditionally lets a client
+  spoof `X-Forwarded-Proto: https` and bypass HTTPS redirection on any
+  deployment that doesn't have that guarantee — which includes local dev
+  and exposing Kestrel directly.
 
 Branding (org name, welcome text, logo) lives in
 [`unifi-entra-portal.client/src/branding/config.ts`](unifi-entra-portal.client/src/branding/config.ts)

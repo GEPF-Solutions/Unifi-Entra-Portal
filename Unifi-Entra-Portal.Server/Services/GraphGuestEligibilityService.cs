@@ -16,7 +16,14 @@ namespace Unifi_Entra_Portal.Server.Services;
 /// object ID, and Graph lookups also sidestep the ID token "groups claim
 /// overage" limitation entirely.
 /// </summary>
-public class GraphGuestEligibilityService : IGuestEligibilityService
+/// <remarks>
+/// Registered as a singleton (see Program.cs) so the single <see cref="HttpClient"/>
+/// built in the constructor is reused for the app's lifetime instead of a
+/// fresh one per revalidation call. The bearer token is still fetched
+/// per-call via <see cref="_tokenProvider"/>, which caches/refreshes it
+/// independently.
+/// </remarks>
+public class GraphGuestEligibilityService : IGuestEligibilityService, IDisposable
 {
     private const string GraphBaseUrl = "https://graph.microsoft.com/v1.0/";
     private static readonly JsonSerializerOptions GraphJsonOptions = new(JsonSerializerDefaults.Web);
@@ -24,7 +31,7 @@ public class GraphGuestEligibilityService : IGuestEligibilityService
     private readonly IGraphTokenProvider _tokenProvider;
     private readonly GatingSettings _gatingSettings;
     private readonly ILogger<GraphGuestEligibilityService> _logger;
-    private readonly HttpMessageHandler? _handlerOverride;
+    private readonly HttpClient _client;
 
     /// <param name="handlerOverride">Substitutes the HTTP transport for tests. Left null in production.</param>
     public GraphGuestEligibilityService(
@@ -36,22 +43,20 @@ public class GraphGuestEligibilityService : IGuestEligibilityService
         _tokenProvider = tokenProvider;
         _gatingSettings = gatingSettings.Value;
         _logger = logger;
-        _handlerOverride = handlerOverride;
+
+        _client = new HttpClient(handlerOverride ?? new HttpClientHandler(), disposeHandler: handlerOverride is null)
+        {
+            BaseAddress = new Uri(GraphBaseUrl),
+        };
     }
 
     /// <inheritdoc />
     public async Task<bool> IsEligibleAsync(string userObjectId, CancellationToken cancellationToken)
     {
-        var handler = _handlerOverride ?? new HttpClientHandler();
-        using var client = new HttpClient(handler, disposeHandler: _handlerOverride is null)
-        {
-            BaseAddress = new Uri(GraphBaseUrl),
-        };
-
         var token = await _tokenProvider.GetAccessTokenAsync(cancellationToken);
-        client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", token);
+        _client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", token);
 
-        if (!await IsAccountEnabledAsync(client, userObjectId, cancellationToken))
+        if (!await IsAccountEnabledAsync(_client, userObjectId, cancellationToken))
         {
             return false;
         }
@@ -61,7 +66,14 @@ public class GraphGuestEligibilityService : IGuestEligibilityService
             return true;
         }
 
-        return await IsInAllowedGroupAsync(client, userObjectId, cancellationToken);
+        return await IsInAllowedGroupAsync(_client, userObjectId, cancellationToken);
+    }
+
+    /// <inheritdoc />
+    public void Dispose()
+    {
+        _client.Dispose();
+        GC.SuppressFinalize(this);
     }
 
     private async Task<bool> IsAccountEnabledAsync(HttpClient client, string userObjectId, CancellationToken cancellationToken)

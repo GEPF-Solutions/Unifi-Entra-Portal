@@ -82,4 +82,79 @@ public class GuestRevalidationBackgroundServiceTests
         repository.Verify(r => r.MarkValidatedAsync("BB:BB:BB:BB:BB:BB", It.IsAny<CancellationToken>()), Times.Once);
         uniFiClient.Verify(c => c.UnauthorizeGuestAsync(It.IsAny<string>(), It.IsAny<CancellationToken>()), Times.Never);
     }
+
+    [Fact]
+    public async Task RevalidateAllAsync_WhenSameUserHasMultipleDevices_ChecksEligibilityOnlyOnce()
+    {
+        var (service, repository, eligibility, uniFiClient) = CreateService();
+        var phone = new AuthorizedGuest { MacAddress = "AA:AA:AA:AA:AA:AA", UserObjectId = "user-1" };
+        var laptop = new AuthorizedGuest { MacAddress = "BB:BB:BB:BB:BB:BB", UserObjectId = "user-1" };
+        repository.Setup(r => r.GetAllAsync(It.IsAny<CancellationToken>())).ReturnsAsync([phone, laptop]);
+        eligibility.Setup(e => e.IsEligibleAsync("user-1", It.IsAny<CancellationToken>())).ReturnsAsync(true);
+
+        await service.RevalidateAllAsync(CancellationToken.None);
+
+        eligibility.Verify(e => e.IsEligibleAsync("user-1", It.IsAny<CancellationToken>()), Times.Once);
+        repository.Verify(r => r.MarkValidatedAsync("AA:AA:AA:AA:AA:AA", It.IsAny<CancellationToken>()), Times.Once);
+        repository.Verify(r => r.MarkValidatedAsync("BB:BB:BB:BB:BB:BB", It.IsAny<CancellationToken>()), Times.Once);
+        uniFiClient.Verify(c => c.UnauthorizeGuestAsync(It.IsAny<string>(), It.IsAny<CancellationToken>()), Times.Never);
+    }
+
+    [Fact]
+    public async Task RevalidateAllAsync_WhenSameUserIneligible_RevokesAllOfTheirDevices()
+    {
+        var (service, repository, eligibility, uniFiClient) = CreateService();
+        var phone = new AuthorizedGuest { MacAddress = "AA:AA:AA:AA:AA:AA", UserObjectId = "user-1" };
+        var laptop = new AuthorizedGuest { MacAddress = "BB:BB:BB:BB:BB:BB", UserObjectId = "user-1" };
+        repository.Setup(r => r.GetAllAsync(It.IsAny<CancellationToken>())).ReturnsAsync([phone, laptop]);
+        eligibility.Setup(e => e.IsEligibleAsync("user-1", It.IsAny<CancellationToken>())).ReturnsAsync(false);
+
+        await service.RevalidateAllAsync(CancellationToken.None);
+
+        eligibility.Verify(e => e.IsEligibleAsync("user-1", It.IsAny<CancellationToken>()), Times.Once);
+        uniFiClient.Verify(c => c.UnauthorizeGuestAsync("AA:AA:AA:AA:AA:AA", It.IsAny<CancellationToken>()), Times.Once);
+        uniFiClient.Verify(c => c.UnauthorizeGuestAsync("BB:BB:BB:BB:BB:BB", It.IsAny<CancellationToken>()), Times.Once);
+    }
+
+    [Fact]
+    public async Task ExecuteAsync_WhenARevalidationPassThrows_DoesNotFaultTheHostedService()
+    {
+        var (service, repository, _, _) = CreateService();
+        repository.Setup(r => r.GetAllAsync(It.IsAny<CancellationToken>())).ThrowsAsync(new InvalidOperationException("db unavailable"));
+
+        // BackgroundService's default failure behavior is to let an
+        // unhandled ExecuteAsync exception stop the whole host — this
+        // guards against a single bad revalidation pass (DB down, bad
+        // Graph credentials, ...) taking guest sign-in down with it.
+        await service.StartAsync(CancellationToken.None);
+        await Task.Delay(100);
+        await service.StopAsync(CancellationToken.None);
+
+        Assert.False(service.ExecuteTask is { IsFaulted: true });
+        repository.Verify(r => r.GetAllAsync(It.IsAny<CancellationToken>()), Times.AtLeastOnce);
+    }
+
+    [Fact]
+    public async Task ExecuteAsync_WhenIntervalHoursIsNotPositive_DoesNotThrowOnStartup()
+    {
+        var repository = new Mock<IAuthorizedGuestRepository>();
+        repository.Setup(r => r.GetAllAsync(It.IsAny<CancellationToken>())).ReturnsAsync([]);
+
+        var services = new ServiceCollection();
+        services.AddSingleton(repository.Object);
+        services.AddSingleton(new Mock<IGuestEligibilityService>().Object);
+        services.AddSingleton(new Mock<IUniFiClientService>().Object);
+        var provider = services.BuildServiceProvider();
+
+        var service = new GuestRevalidationBackgroundService(
+            provider.GetRequiredService<IServiceScopeFactory>(),
+            Options.Create(new RevalidationSettings { IntervalHours = 0 }),
+            NullLogger<GuestRevalidationBackgroundService>.Instance);
+
+        await service.StartAsync(CancellationToken.None);
+        await Task.Delay(100);
+        await service.StopAsync(CancellationToken.None);
+
+        Assert.False(service.ExecuteTask is { IsFaulted: true });
+    }
 }

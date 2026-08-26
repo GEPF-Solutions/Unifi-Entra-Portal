@@ -13,13 +13,19 @@ namespace Unifi_Entra_Portal.Server.Services;
 /// address, every call first looks up that UUID by filtering the site's
 /// connected-clients list on MAC.
 /// </summary>
-public class UniFiClientService : IUniFiClientService
+/// <remarks>
+/// Registered as a singleton (see Program.cs) so the single <see cref="HttpClient"/>
+/// built in the constructor is reused — and its underlying connections
+/// pooled — for the app's lifetime, instead of paying a fresh TCP/TLS
+/// handshake to the UniFi controller on every guest sign-in.
+/// </remarks>
+public class UniFiClientService : IUniFiClientService, IDisposable
 {
     private static readonly JsonSerializerOptions ResponseJsonOptions = new(JsonSerializerDefaults.Web);
 
     private readonly UniFiSettings _settings;
     private readonly ILogger<UniFiClientService> _logger;
-    private readonly HttpMessageHandler? _handlerOverride;
+    private readonly HttpClient _client;
 
     /// <param name="handlerOverride">
     /// Substitutes the HTTP transport for tests. Left null in production.
@@ -31,7 +37,12 @@ public class UniFiClientService : IUniFiClientService
     {
         _settings = settings.Value;
         _logger = logger;
-        _handlerOverride = handlerOverride;
+
+        _client = new HttpClient(handlerOverride ?? CreateDefaultHandler(), disposeHandler: handlerOverride is null)
+        {
+            BaseAddress = new Uri(BuildBaseUrl()),
+        };
+        _client.DefaultRequestHeaders.Add("X-API-Key", _settings.ApiKey);
     }
 
     /// <inheritdoc />
@@ -42,23 +53,23 @@ public class UniFiClientService : IUniFiClientService
     public Task UnauthorizeGuestAsync(string macAddress, CancellationToken cancellationToken) =>
         SendGuestActionAsync(macAddress, "UNAUTHORIZE_GUEST_ACCESS", minutes: null, cancellationToken);
 
+    /// <inheritdoc />
+    public void Dispose()
+    {
+        _client.Dispose();
+        GC.SuppressFinalize(this);
+    }
+
     private async Task SendGuestActionAsync(string macAddress, string action, int? minutes, CancellationToken cancellationToken)
     {
-        var handler = _handlerOverride ?? CreateDefaultHandler();
-        using var client = new HttpClient(handler, disposeHandler: _handlerOverride is null)
-        {
-            BaseAddress = new Uri(BuildBaseUrl()),
-        };
-        client.DefaultRequestHeaders.Add("X-API-Key", _settings.ApiKey);
-
-        var clientId = await FindClientIdByMacAsync(client, macAddress, cancellationToken)
+        var clientId = await FindClientIdByMacAsync(_client, macAddress, cancellationToken)
             ?? throw new InvalidOperationException($"No connected UniFi client found with MAC address {macAddress}.");
 
         object body = minutes.HasValue
             ? new { action, timeLimitMinutes = minutes.Value }
             : new { action };
 
-        using var response = await client.PostAsJsonAsync($"v1/sites/{_settings.SiteId}/clients/{clientId}/actions", body, cancellationToken);
+        using var response = await _client.PostAsJsonAsync($"v1/sites/{_settings.SiteId}/clients/{clientId}/actions", body, cancellationToken);
         response.EnsureSuccessStatusCode();
 
         _logger.LogInformation("UniFi {Action} succeeded for {Mac}", action, macAddress);
