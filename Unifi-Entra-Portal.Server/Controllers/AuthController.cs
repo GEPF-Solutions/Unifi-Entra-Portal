@@ -3,6 +3,7 @@ using Microsoft.AspNetCore.Authentication.Cookies;
 using Microsoft.AspNetCore.Authentication.OpenIdConnect;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Identity.Web;
+using Microsoft.IdentityModel.Protocols.OpenIdConnect;
 
 namespace Unifi_Entra_Portal.Server.Controllers;
 
@@ -19,7 +20,12 @@ public class AuthController : ControllerBase
 {
     /// <summary>
     /// Starts the Entra ID sign-in flow by challenging the OpenID Connect
-    /// scheme, redirecting the browser to Microsoft's login page.
+    /// scheme, redirecting the browser to Microsoft's login page. Always
+    /// requests the account picker (<c>prompt=select_account</c>) rather
+    /// than allowing a silent seamless-SSO sign-in, since this portal is
+    /// typically used from a shared/kiosk-style device where a stale
+    /// cached Entra session belonging to a different person must not be
+    /// authorized without the guest explicitly confirming who they are.
     /// </summary>
     /// <param name="returnUrl">
     /// Relative path to return the browser to after a successful sign-in
@@ -30,9 +36,10 @@ public class AuthController : ControllerBase
     public IActionResult Login(string returnUrl = "/")
     {
         var redirectUri = Url.IsLocalUrl(returnUrl) ? returnUrl : "/";
-        return Challenge(
-            new AuthenticationProperties { RedirectUri = redirectUri },
-            OpenIdConnectDefaults.AuthenticationScheme);
+        var properties = new AuthenticationProperties { RedirectUri = redirectUri };
+        properties.Items[OpenIdConnectParameterNames.Prompt] = "select_account";
+
+        return Challenge(properties, OpenIdConnectDefaults.AuthenticationScheme);
     }
 
     /// <summary>
