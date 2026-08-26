@@ -438,3 +438,11 @@ FodyWeavers.xsd
 *.msix
 *.msm
 *.msp
+
+# JetBrains IDEs (Rider, WebStorm, etc.)
+.idea/
+
+# Workaround for the JS project SDK (.esproj) emitting a literal
+# "obj\Debug" directory name (backslash baked into the path string)
+# instead of a nested obj/Debug/ when built on a non-Windows OS.
+**/obj\\Debug/
