@@ -4,4 +4,5 @@
     <Deploy />
   </Project>
   <Project Path="Unifi-Entra-Portal.Server/Unifi-Entra-Portal.Server.csproj" />
+  <Project Path="Unifi-Entra-Portal.Tests/Unifi-Entra-Portal.Tests.csproj" />
 </Solution>

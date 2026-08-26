@@ -47,7 +47,23 @@ export default defineConfig({
     },
     server: {
         proxy: {
-            '^/weatherforecast': {
+            '^/api': {
+                target,
+                secure: false
+            },
+            // OpenID Connect callback paths that Microsoft's login page
+            // posts/redirects to directly on this origin — these are handled
+            // by ASP.NET Core's authentication middleware, not the SPA, so
+            // they need to be proxied to the backend just like /api.
+            '^/signin-oidc': {
+                target,
+                secure: false
+            },
+            '^/signout-oidc': {
+                target,
+                secure: false
+            },
+            '^/signout-callback-oidc': {
                 target,
                 secure: false
             }
