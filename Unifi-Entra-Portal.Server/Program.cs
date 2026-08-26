@@ -1,5 +1,6 @@
 using Microsoft.AspNetCore.Authentication.Cookies;
 using Microsoft.AspNetCore.Authentication.OpenIdConnect;
+using Microsoft.AspNetCore.HttpOverrides;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Identity.Web;
 using Unifi_Entra_Portal.Server.DbModel;
@@ -60,6 +61,7 @@ namespace Unifi_Entra_Portal.Server
             });
 
             builder.Services.AddAuthorization();
+            builder.Services.AddHealthChecks();
 
             builder.Services.AddScoped<IUniFiClientService, UniFiClientService>();
             builder.Services.AddScoped<IGatingService, GatingService>();
@@ -82,6 +84,25 @@ namespace Unifi_Entra_Portal.Server
 
             var app = builder.Build();
 
+            // Must run first, before any middleware that inspects the
+            // request scheme/host (HTTPS redirection, the OIDC handler's
+            // redirect_uri construction). OpenShift Routes/most ingress
+            // controllers terminate TLS at the edge and forward plain HTTP
+            // to the pod, so without this the app thinks every request is
+            // HTTP — causing an HTTPS-redirect loop and an OIDC reply URL
+            // that doesn't match what's registered in Entra. KnownNetworks
+            // and KnownProxies are cleared because the pod is only ever
+            // reachable through the cluster-internal router/service, never
+            // directly from the internet, so there's no untrusted network
+            // hop to restrict this to.
+            var forwardedHeadersOptions = new ForwardedHeadersOptions
+            {
+                ForwardedHeaders = ForwardedHeaders.XForwardedFor | ForwardedHeaders.XForwardedProto,
+            };
+            forwardedHeadersOptions.KnownIPNetworks.Clear();
+            forwardedHeadersOptions.KnownProxies.Clear();
+            app.UseForwardedHeaders(forwardedHeadersOptions);
+
             using (var startupScope = app.Services.CreateScope())
             {
                 startupScope.ServiceProvider.GetRequiredService<PortalDbContext>().Database.Migrate();
@@ -97,8 +118,9 @@ namespace Unifi_Entra_Portal.Server
             app.UseAuthentication();
             app.UseAuthorization();
 
-
             app.MapControllers();
+
+            app.MapHealthChecks("/healthz");
 
             app.MapFallbackToFile("/index.html");
 
