@@ -1,6 +1,8 @@
+using System.Threading.RateLimiting;
 using Microsoft.AspNetCore.Authentication.Cookies;
 using Microsoft.AspNetCore.Authentication.OpenIdConnect;
 using Microsoft.AspNetCore.HttpOverrides;
+using Microsoft.AspNetCore.RateLimiting;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Options;
 using Microsoft.Identity.Web;
@@ -28,6 +30,7 @@ namespace Unifi_Entra_Portal.Server
             builder.Services.Configure<RevalidationSettings>(builder.Configuration.GetSection("Revalidation"));
             builder.Services.Configure<AzureAdCredentialsSettings>(builder.Configuration.GetSection("AzureAd"));
             builder.Services.Configure<ForwardedHeadersSettings>(builder.Configuration.GetSection("ForwardedHeaders"));
+            builder.Services.Configure<GuestAgbSettings>(builder.Configuration.GetSection("GuestAgb"));
 
             builder.Services
                 .AddAuthentication(OpenIdConnectDefaults.AuthenticationScheme)
@@ -64,6 +67,27 @@ namespace Unifi_Entra_Portal.Server
 
             builder.Services.AddAuthorization();
             builder.Services.AddHealthChecks();
+
+            // GuestController's routes are deliberately anonymous — unlike
+            // PortalController, there's no Entra sign-in to naturally cap
+            // request volume. Without this, anyone on the internet could
+            // hammer /api/guest/authorize with guessed MACs; this doesn't
+            // close that off entirely, but it blunts automated abuse.
+            // Keyed on RemoteIpAddress, which by this point already
+            // reflects the real client IP behind a trusted proxy (see
+            // UseForwardedHeaders below, which runs before routing).
+            builder.Services.AddRateLimiter(options =>
+            {
+                options.RejectionStatusCode = StatusCodes.Status429TooManyRequests;
+                options.AddPolicy("guest", httpContext => RateLimitPartition.GetFixedWindowLimiter(
+                    partitionKey: httpContext.Connection.RemoteIpAddress?.ToString() ?? "unknown",
+                    factory: _ => new FixedWindowRateLimiterOptions
+                    {
+                        PermitLimit = 20,
+                        Window = TimeSpan.FromMinutes(1),
+                        QueueLimit = 0,
+                    }));
+            });
 
             // Singleton: both own a single long-lived HttpClient (built once
             // in their constructor) so guest sign-ins reuse pooled
@@ -135,6 +159,7 @@ namespace Unifi_Entra_Portal.Server
 
             app.UseAuthentication();
             app.UseAuthorization();
+            app.UseRateLimiter();
 
             app.MapControllers();
 

@@ -50,6 +50,21 @@ public class UniFiClientServiceTests
     }
 
     [Fact]
+    public async Task AuthorizeGuestAsync_WithExplicitDuration_SendsThatDurationInsteadOfConfiguredDefault()
+    {
+        var handler = new FakeHttpMessageHandler(ClientListResponse("client-uuid-1"), new HttpResponseMessage(HttpStatusCode.OK));
+        var settings = DefaultSettings();
+        settings.AuthorizeDurationMinutes = 43200;
+        var service = new UniFiClientService(Options.Create(settings), NullLogger<UniFiClientService>.Instance, handler);
+
+        await service.AuthorizeGuestAsync("AA:BB:CC:DD:EE:FF", 1440, CancellationToken.None);
+
+        var action = handler.Requests[1];
+        Assert.Contains("\"action\":\"AUTHORIZE_GUEST_ACCESS\"", action.Body);
+        Assert.Contains("\"timeLimitMinutes\":1440", action.Body);
+    }
+
+    [Fact]
     public async Task UnauthorizeGuestAsync_SendsActionWithoutTimeLimit()
     {
         var handler = new FakeHttpMessageHandler(ClientListResponse("client-uuid-1"), new HttpResponseMessage(HttpStatusCode.OK));

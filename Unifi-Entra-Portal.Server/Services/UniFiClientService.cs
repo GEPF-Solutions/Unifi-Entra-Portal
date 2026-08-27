@@ -50,6 +50,10 @@ public class UniFiClientService : IUniFiClientService, IDisposable
         SendGuestActionAsync(macAddress, "AUTHORIZE_GUEST_ACCESS", _settings.AuthorizeDurationMinutes, cancellationToken);
 
     /// <inheritdoc />
+    public Task AuthorizeGuestAsync(string macAddress, int durationMinutes, CancellationToken cancellationToken) =>
+        SendGuestActionAsync(macAddress, "AUTHORIZE_GUEST_ACCESS", durationMinutes, cancellationToken);
+
+    /// <inheritdoc />
     public Task UnauthorizeGuestAsync(string macAddress, CancellationToken cancellationToken) =>
         SendGuestActionAsync(macAddress, "UNAUTHORIZE_GUEST_ACCESS", minutes: null, cancellationToken);
 

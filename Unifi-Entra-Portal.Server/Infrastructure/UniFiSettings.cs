@@ -54,6 +54,17 @@ public class UniFiSettings
     public int AuthorizeDurationMinutes { get; set; } = 43200;
 
     /// <summary>
+    /// How long (in minutes) a guest who accepted the AGB/terms checkbox but
+    /// did not sign in via Entra stays authorized. Kept short relative to
+    /// <see cref="AuthorizeDurationMinutes"/> since there is no tracked
+    /// identity to revalidate or offboard early — UniFi's own expiry is the
+    /// only mechanism that removes this guest's access, matching the
+    /// previous UniFi-native Hotspot Portal's AGB/expiry behavior this
+    /// replaces.
+    /// </summary>
+    public int GuestAuthorizeDurationMinutes { get; set; } = 1440;
+
+    /// <summary>
     /// Whether to accept the console's TLS certificate without validation.
     /// Only relevant when <see cref="UseCloudConnector"/> is false and the
     /// console has a self-signed certificate on the local network.

@@ -1,0 +1,43 @@
+using System.Net;
+using Microsoft.AspNetCore.Mvc.Testing;
+
+namespace Unifi_Entra_Portal.Tests;
+
+/// <summary>
+/// Confirms the "guest" rate-limiting policy registered in Program.cs is
+/// actually wired up on <see cref="Unifi_Entra_Portal.Server.Controllers.GuestController"/>
+/// — i.e. that [EnableRateLimiting]/UseRateLimiter weren't silently dropped
+/// or misconfigured, not just that the .NET middleware itself works.
+/// </summary>
+/// <remarks>
+/// Deliberately its own test class with its own <see cref="WebApplicationFactory{TEntryPoint}"/>
+/// (own DI container, own rate-limiter state), rather than sharing
+/// <see cref="GuestEndpointAuthTests"/>'s factory — consuming most of the
+/// per-IP quota here would otherwise make those other tests flaky
+/// depending on xUnit's execution order.
+/// </remarks>
+public class GuestRateLimitingTests : IClassFixture<WebApplicationFactory<Unifi_Entra_Portal.Server.Program>>
+{
+    private readonly WebApplicationFactory<Unifi_Entra_Portal.Server.Program> _factory;
+
+    public GuestRateLimitingTests(WebApplicationFactory<Unifi_Entra_Portal.Server.Program> factory)
+    {
+        _factory = factory;
+    }
+
+    [Fact]
+    public async Task GetAgbText_WhenCalledPastTheLimit_ReturnsTooManyRequests()
+    {
+        var client = _factory.CreateClient();
+
+        // The "guest" policy allows 20 requests per minute per IP (see
+        // Program.cs) — the 21st from the same client should be rejected.
+        HttpResponseMessage? lastResponse = null;
+        for (var i = 0; i < 21; i++)
+        {
+            lastResponse = await client.GetAsync("/api/guest/agb-text");
+        }
+
+        Assert.Equal(HttpStatusCode.TooManyRequests, lastResponse!.StatusCode);
+    }
+}

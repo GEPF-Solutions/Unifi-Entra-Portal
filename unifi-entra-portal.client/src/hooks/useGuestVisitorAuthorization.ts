@@ -1,0 +1,47 @@
+import { useCallback, useState } from 'react';
+
+export type GuestVisitorAuthorizationStatus = 'idle' | 'authorizing' | 'authorized' | 'error';
+
+interface UseGuestVisitorAuthorizationResult {
+    status: GuestVisitorAuthorizationStatus;
+    /** Call once the visitor has checked the AGB box and clicked Continue. */
+    authorize: (agbAccepted: boolean) => Promise<void>;
+}
+
+/**
+ * Authorizes an anonymous guest's device on the UniFi network after they
+ * accept the AGB/terms checkbox. Exposes an imperative `authorize()`
+ * function rather than auto-running from an effect (contrast with
+ * `useGuestAuthorization`) — this must fire exactly once, when the visitor
+ * clicks Continue, not as a side effect of some value becoming truthy.
+ * Since it's only ever invoked from a click handler, it isn't subject to
+ * React StrictMode's dev-mode double-effect-on-mount behavior; a simple
+ * in-flight guard (disabling Continue while `status === 'authorizing'`)
+ * still prevents a double-click from double-submitting.
+ */
+export function useGuestVisitorAuthorization(macAddress: string | null): UseGuestVisitorAuthorizationResult {
+    const [status, setStatus] = useState<GuestVisitorAuthorizationStatus>('idle');
+
+    const authorize = useCallback(
+        async (agbAccepted: boolean) => {
+            if (!macAddress || !agbAccepted) {
+                setStatus('error');
+                return;
+            }
+
+            setStatus('authorizing');
+            try {
+                const response = await fetch(
+                    `/api/guest/authorize?mac=${encodeURIComponent(macAddress)}&agbAccepted=${agbAccepted}`,
+                    { method: 'POST' },
+                );
+                setStatus(response.ok ? 'authorized' : 'error');
+            } catch {
+                setStatus('error');
+            }
+        },
+        [macAddress],
+    );
+
+    return { status, authorize };
+}
