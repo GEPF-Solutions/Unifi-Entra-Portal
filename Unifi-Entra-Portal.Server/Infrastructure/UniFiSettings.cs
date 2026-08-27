@@ -46,12 +46,21 @@ public class UniFiSettings
     public string SiteId { get; set; } = string.Empty;
 
     /// <summary>
-    /// How long (in minutes) an authorized guest device stays authorized
-    /// before it would need re-authorization. In practice this is kept long,
-    /// with a background job handling early offboarding via
-    /// UNAUTHORIZE_GUEST_ACCESS instead of relying on a short expiry.
+    /// How long (in minutes) an authorized member device stays authorized.
+    /// Set to UniFi's documented maximum (1,000,000 ≈ 1.9 years) rather
+    /// than a short/moderate window — this is deliberately not the real
+    /// offboarding mechanism. <see cref="Services.GuestRevalidationBackgroundService"/>
+    /// is: it periodically re-checks every authorized device against Entra
+    /// and revokes access (UNAUTHORIZE_GUEST_ACCESS) the moment someone is
+    /// no longer eligible, so this duration only matters as a last-resort
+    /// ceiling if that job were ever silently broken for good — a known,
+    /// deliberately accepted tradeoff of relying on the revalidation job
+    /// rather than a short expiry (see Context.md, "Persistence / no
+    /// repeat auth"). Not set to true "unlimited": UniFi documents
+    /// timeLimitMinutes as optional but never documents what omitting it
+    /// actually does, so this uses the documented, verified max instead.
     /// </summary>
-    public int AuthorizeDurationMinutes { get; set; } = 43200;
+    public int AuthorizeDurationMinutes { get; set; } = 1000000;
 
     /// <summary>
     /// How long (in minutes) a guest who accepted the AGB/terms checkbox but

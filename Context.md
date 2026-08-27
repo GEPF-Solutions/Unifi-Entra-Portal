@@ -109,6 +109,19 @@ that org.
   triggering a one-off re-auth. Not something to engineer around — treated
   as an acceptable, occasional inconvenience, not a bug.
 
+**Updated 2026-08-27:** `UniFi:AuthorizeDurationMinutes` was pushed from a
+"long" 30 days to UniFi's documented max (1,000,000 minutes ≈ 1.9 years)
+— effectively permanent, on purpose. `GuestRevalidationBackgroundService`
+is now the *only* thing that ever deactivates a member's device; the
+duration is purely a last-resort ceiling in case that job is ever silently
+broken for good. Considered adding a staleness safeguard (revoke access if
+a guest hasn't successfully re-validated in N cycles) to keep that
+worst-case bounded, and explicitly decided **not** to for now — a known,
+accepted tradeoff, not an oversight. True "no expiry" (omitting
+`timeLimitMinutes` entirely) was considered and rejected: UniFi documents
+the field as optional but never documents what omitting it actually does,
+so the verified documented max was used instead.
+
 ## Hosting requirements
 - Public, real HTTPS endpoint with a trusted (non-self-signed) certificate —
   devices in the pending/pre-auth state generally won't complete an OAuth

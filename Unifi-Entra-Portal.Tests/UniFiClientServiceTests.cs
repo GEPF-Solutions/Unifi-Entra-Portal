@@ -14,7 +14,7 @@ public class UniFiClientServiceTests
         UseCloudConnector = true,
         ConsoleId = "console-1",
         SiteId = "11111111-1111-1111-1111-111111111111",
-        AuthorizeDurationMinutes = 43200,
+        AuthorizeDurationMinutes = 1000000,
     };
 
     private static HttpResponseMessage ClientListResponse(string clientId) => new(HttpStatusCode.OK)
@@ -46,7 +46,7 @@ public class UniFiClientServiceTests
         Assert.Equal(HttpMethod.Post, action.Method);
         Assert.EndsWith("/v1/sites/11111111-1111-1111-1111-111111111111/clients/client-uuid-1/actions", action.Path);
         Assert.Contains("\"action\":\"AUTHORIZE_GUEST_ACCESS\"", action.Body);
-        Assert.Contains("\"timeLimitMinutes\":43200", action.Body);
+        Assert.Contains("\"timeLimitMinutes\":1000000", action.Body);
     }
 
     [Fact]
