@@ -1,5 +1,7 @@
 using System.Net;
+using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Mvc.Testing;
+using Microsoft.Extensions.Configuration;
 
 namespace Unifi_Entra_Portal.Tests;
 
@@ -22,7 +24,20 @@ public class GuestRateLimitingTests : IClassFixture<WebApplicationFactory<Unifi_
 
     public GuestRateLimitingTests(WebApplicationFactory<Unifi_Entra_Portal.Server.Program> factory)
     {
-        _factory = factory;
+        _factory = factory.WithWebHostBuilder(builder =>
+        {
+            // See PortalEndpointAuthTests: without this override, this
+            // factory's Database.Migrate() races every other
+            // WebApplicationFactory-based test class against the same
+            // fallback data/portal.db file.
+            builder.ConfigureAppConfiguration((_, configBuilder) =>
+            {
+                configBuilder.AddInMemoryCollection(new Dictionary<string, string?>
+                {
+                    ["ConnectionStrings:Portal"] = $"Data Source={Path.Combine(Path.GetTempPath(), $"portal-test-{Guid.NewGuid():N}.db")}",
+                });
+            });
+        });
     }
 
     [Fact]

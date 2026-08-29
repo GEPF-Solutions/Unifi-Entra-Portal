@@ -54,6 +54,12 @@ public class GuestEndpointAuthTests : IClassFixture<WebApplicationFactory<Unifi_
                     ["AzureAd:TenantId"] = "00000000-0000-0000-0000-000000000000",
                     ["AzureAd:ClientId"] = "00000000-0000-0000-0000-000000000000",
                     ["AzureAd:ClientSecret"] = "test-secret-not-a-real-credential",
+
+                    // See PortalEndpointAuthTests: without this override,
+                    // this factory's Database.Migrate() races every other
+                    // WebApplicationFactory-based test class against the
+                    // same fallback data/portal.db file.
+                    ["ConnectionStrings:Portal"] = $"Data Source={Path.Combine(Path.GetTempPath(), $"portal-test-{Guid.NewGuid():N}.db")}",
                 });
             });
 
