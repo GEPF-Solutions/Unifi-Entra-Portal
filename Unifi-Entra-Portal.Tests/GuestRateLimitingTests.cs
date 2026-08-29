@@ -26,14 +26,25 @@ public class GuestRateLimitingTests : IClassFixture<WebApplicationFactory<Unifi_
     {
         _factory = factory.WithWebHostBuilder(builder =>
         {
-            // See PortalEndpointAuthTests: without this override, this
-            // factory's Database.Migrate() races every other
-            // WebApplicationFactory-based test class against the same
-            // fallback data/portal.db file.
+            builder.UseEnvironment("Development");
+
+            // See PortalEndpointAuthTests for why these AzureAd placeholders
+            // are needed just to let the app boot in CI — without them,
+            // Microsoft.Identity.Web throws validating options on the first
+            // request, turning every response (including the 21st, which
+            // this test expects to be 429) into an unrelated 500.
             builder.ConfigureAppConfiguration((_, configBuilder) =>
             {
                 configBuilder.AddInMemoryCollection(new Dictionary<string, string?>
                 {
+                    ["AzureAd:TenantId"] = "00000000-0000-0000-0000-000000000000",
+                    ["AzureAd:ClientId"] = "00000000-0000-0000-0000-000000000000",
+                    ["AzureAd:ClientSecret"] = "test-secret-not-a-real-credential",
+
+                    // See PortalEndpointAuthTests: without this override,
+                    // this factory's Database.Migrate() races every other
+                    // WebApplicationFactory-based test class against the
+                    // same fallback data/portal.db file.
                     ["ConnectionStrings:Portal"] = $"Data Source={Path.Combine(Path.GetTempPath(), $"portal-test-{Guid.NewGuid():N}.db")}",
                 });
             });
