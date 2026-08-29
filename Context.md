@@ -109,6 +109,19 @@ that org.
   triggering a one-off re-auth. Not something to engineer around — treated
   as an acceptable, occasional inconvenience, not a bug.
 
+**Updated 2026-08-27:** `UniFi:AuthorizeDurationMinutes` was pushed from a
+"long" 30 days to UniFi's documented max (1,000,000 minutes ≈ 1.9 years)
+— effectively permanent, on purpose. `GuestRevalidationBackgroundService`
+is now the *only* thing that ever deactivates a member's device; the
+duration is purely a last-resort ceiling in case that job is ever silently
+broken for good. Considered adding a staleness safeguard (revoke access if
+a guest hasn't successfully re-validated in N cycles) to keep that
+worst-case bounded, and explicitly decided **not** to for now — a known,
+accepted tradeoff, not an oversight. True "no expiry" (omitting
+`timeLimitMinutes` entirely) was considered and rejected: UniFi documents
+the field as optional but never documents what omitting it actually does,
+so the verified documented max was used instead.
+
 ## Hosting requirements
 - Public, real HTTPS endpoint with a trusted (non-self-signed) certificate —
   devices in the pending/pre-auth state generally won't complete an OAuth
@@ -137,6 +150,113 @@ Not finalized yet. Candidates discussed: `entra-gatekeeper`,
 short/literal for discoverability (e.g. `unifi-entra-portal` or
 `entra-gatekeeper`), but open to a more distinctive name if the project
 scope grows beyond just UniFi+Entra later.
+
+## Dual guest/member portal
+
+**Implemented 2026-08-27.** The problem, verification, and decided approach
+below are kept as-written for history; see "Implementation status" at the
+end of this section for what actually shipped and what's still open.
+
+**Problem discovered while configuring the real console (2026-08-26/27):**
+UniFi's Guest/Hotspot Portal Type (Simple/Password/External/etc.) is **one
+setting per site**, not per-SSID or per-WLAN-group (WLAN Groups were
+replaced by AP Groups, which only control which APs broadcast an SSID —
+unrelated to portal config). It applies to every guest-enabled SSID on the
+site. There is no native way to give one SSID an Entra-gated external
+portal while another keeps UniFi's built-in landing page.
+
+The existing guest SSID currently uses UniFi's built-in landing page: an
+AGB (terms) checkbox + a 24-hour authorization expiry, no identity check.
+That network needs to keep working exactly as it does today. This app's
+own SSID (`ffw-auth`, host `ffw-auth.gepf.at`) needs the full Entra-gated
+flow. Since only one Portal Type can be active site-wide, both SSIDs will
+end up redirected to the same External Portal Server URL once that's
+turned on — so the split has to happen inside this app, not in UniFi.
+
+**Verified before committing to this** (2026-08-27) — this constraint and
+workaround are real, not a guess:
+- A live Ubiquiti community thread is literally titled *"Feature request:
+  Multiple Guest Portals based on SSID on the same site controller"* —
+  its existence as an open feature request is itself strong evidence this
+  doesn't work natively (nobody requests a feature that already exists).
+- Independently, *"Two guest portals"*, *"Multiple Captive Portals (Guest
+  Portals) on single AP"*, and *"Wifi Hotspot Portal for a single SSID is
+  getting applied to all SSIDs for a site"* (all on community.ui.com) each
+  separately describe the same one-Portal-Type-per-site behavior.
+- The commonly cited workaround across those threads is exactly what we
+  landed on: one external portal, branching on the SSID/MAC UniFi already
+  passes as query params — not something invented for this project.
+- Varying the UniFi authorization **duration per request** (30 days for
+  members vs. 24h for guests) is already proven working in this
+  codebase — `UniFiClientService.SendGuestActionAsync` sends
+  `timeLimitMinutes` as an explicit per-call parameter today (see
+  `Services/UniFiClientService.cs`), exercised by passing tests.
+- Could not get a direct quote from Ubiquiti's own official docs in this
+  pass — `help.ui.com` 403s automated fetches and `community.ui.com` is a
+  JS-rendered SPA that doesn't return content without a real browser (see
+  the existing "Do not fetch ai-gettingstarted.md-style pages" note
+  above — same domain, same problem, not new). If anyone wants a
+  zero-ambiguity check: open the console's Portal Type dropdown directly
+  and confirm there's no per-SSID option.
+
+**Decided approach:** one landing page in this app, with a choice between
+two paths, shown to every guest regardless of which SSID they connected
+to:
+
+- **"I'm a fire department member"** — the existing flow, unchanged:
+  Entra sign-in → `GatingService` group check → UniFi authorize for
+  `UniFi:AuthorizeDurationMinutes` (30 days) → tracked in
+  `AuthorizedGuest` for the background revalidation/offboarding job.
+- **"I'm a guest"** (new) — AGB checkbox → UniFi authorize directly for a
+  short duration (**24 hours**, confirmed) → no Entra sign-in, no
+  `AuthorizedGuest` row (nothing to revalidate against; it just expires
+  on UniFi's side, same as the current behavior).
+
+**VLAN separation is orthogonal to all of this, and lives entirely in
+UniFi** (verified 2026-08-27, before implementing): the guest-authorize
+API (`AUTHORIZE_GUEST_ACCESS`) only accepts `timeLimitMinutes`,
+`dataUsageLimitMBytes`, `rxRateLimitKbps`, `txRateLimitKbps` — no `vlan`
+or `network` field, confirmed against UniFi's own help article content
+and a third-party API client that mirrors it. VLAN is decided by which
+SSID/Network a device associates with at Wi-Fi connection time, before
+the captive portal even loads — nothing this app calls can move a device
+to a different VLAN afterward. Practically: an "Internal" SSID and a
+"Guest" SSID, each bound to its own Network/VLAN in the UniFi console,
+gives real VLAN separation independent of which button someone clicks on
+this portal's choice screen. **There is no VLAN setting in this app and
+none is needed** — don't add one; point whoever asks at this paragraph.
+
+**Implementation status (2026-08-27):**
+- ✅ Choice screen (`ChoicePathScreen`), guest AGB screen (`GuestAgbScreen`),
+  anonymous `GuestController` (`GET /api/guest/agb-text`,
+  `POST /api/guest/authorize`), and `UniFi:GuestAuthorizeDurationMinutes`
+  (default 1440 = 24h) are all built and tested (`dotnet test`: 42/42
+  passing; `npm run build`/`npm run lint` clean).
+- ✅ **AGB text is runtime-configurable**, not baked into the frontend
+  bundle: `GuestAgbSettings.AgbText` (config section `GuestAgb`), served
+  over the anonymous `GET /api/guest/agb-text` endpoint and fetched by the
+  frontend's `useAgbText` hook. An operator changes it via
+  `appsettings.json`/env var (e.g. `GuestAgb__AgbText`), no rebuild
+  needed.
+- ⏳ **Still blocked on real AGB text.** It ships with an obvious
+  placeholder (`"TODO: replace with your organization's actual terms and
+  conditions text."`) — nobody has invented real legal copy. Whoever
+  operates this deployment needs to either pull whatever custom text is
+  configured in the console's Hotspot Portal → Landing Page settings (if
+  any was actually typed in there) or get real terms drafted by someone
+  authorized to write binding legal text for the org, then set
+  `GuestAgb:AgbText` accordingly.
+- ⏳ **Don't flip UniFi's Portal Type to External Portal Server yet** —
+  the app-side guest path exists now, but the actual console setting
+  change (and binding the Internal/Guest SSIDs to their respective
+  Networks/VLANs) is still a manual step for whoever administers that
+  console, not yet done as of this writing.
+
+**Already done on the UniFi side:** the `ffw-auth` SSID exists (Open
+security, Hotspot application, Captive Portal), and the Hotspot Portal's
+Landing Page redirect URL was being pointed at `https://ffw-auth.gepf.at`
+as this was written — but per the above, don't actually switch Portal
+Type over site-wide until the real AGB text is in place too.
 
 ## Stack / starting point
 - ASP.NET Core (C#), `net10.0`, React/Vite/TypeScript frontend, `Microsoft.Identity.Web` for the OIDC flow.

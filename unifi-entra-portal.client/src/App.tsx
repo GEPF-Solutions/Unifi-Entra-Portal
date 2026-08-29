@@ -1,5 +1,8 @@
+import { useState } from 'react';
 import './App.css';
 import { brandingConfig } from './branding/config';
+import ChoicePathScreen from './components/ChoicePathScreen';
+import GuestAgbScreen from './components/GuestAgbScreen';
 import { useAuth } from './hooks/useAuth';
 import { useGuestAuthorization } from './hooks/useGuestAuthorization';
 import { usePortalRedirectParams } from './hooks/usePortalRedirectParams';
@@ -8,6 +11,7 @@ function App() {
     const { clientMac, originalUrl } = usePortalRedirectParams();
     const { isAuthenticated, name, loading, buildLoginUrl } = useAuth();
     const authorizationStatus = useGuestAuthorization(isAuthenticated, clientMac);
+    const [guestPathChosen, setGuestPathChosen] = useState(false);
     const displayName = name ?? 'there';
 
     if (loading) {
@@ -25,16 +29,15 @@ function App() {
             )}
             <h1>{brandingConfig.orgName}</h1>
 
-            {!isAuthenticated && (
-                <>
-                    <p>{brandingConfig.welcomeText}</p>
-                    <a
-                        className="portal-button"
-                        href={buildLoginUrl(window.location.pathname + window.location.search)}
-                    >
-                        Sign in with Microsoft
-                    </a>
-                </>
+            {!isAuthenticated && !guestPathChosen && (
+                <ChoicePathScreen
+                    memberLoginUrl={buildLoginUrl(window.location.pathname + window.location.search)}
+                    onChooseGuest={() => setGuestPathChosen(true)}
+                />
+            )}
+
+            {!isAuthenticated && guestPathChosen && (
+                <GuestAgbScreen macAddress={clientMac} originalUrl={originalUrl} />
             )}
 
             {isAuthenticated && !clientMac && (

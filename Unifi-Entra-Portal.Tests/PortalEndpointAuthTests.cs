@@ -40,6 +40,17 @@ public class PortalEndpointAuthTests : IClassFixture<WebApplicationFactory<Unifi
                     ["AzureAd:TenantId"] = "00000000-0000-0000-0000-000000000000",
                     ["AzureAd:ClientId"] = "00000000-0000-0000-0000-000000000000",
                     ["AzureAd:ClientSecret"] = "test-secret-not-a-real-credential",
+
+                    // Program.cs falls back to a fixed data/portal.db file
+                    // under the content root when ConnectionStrings:Portal
+                    // isn't set. Every WebApplicationFactory-based test
+                    // class shares that same content root, so without this
+                    // override this factory's Database.Migrate() call races
+                    // the other test classes' factories against the same
+                    // on-disk SQLite file — intermittently failing in CI
+                    // with SQLite locking errors. Each factory gets its own
+                    // throwaway file instead.
+                    ["ConnectionStrings:Portal"] = $"Data Source={Path.Combine(Path.GetTempPath(), $"portal-test-{Guid.NewGuid():N}.db")}",
                 });
             });
         });

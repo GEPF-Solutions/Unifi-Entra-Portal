@@ -14,7 +14,7 @@ public class UniFiClientServiceTests
         UseCloudConnector = true,
         ConsoleId = "console-1",
         SiteId = "11111111-1111-1111-1111-111111111111",
-        AuthorizeDurationMinutes = 43200,
+        AuthorizeDurationMinutes = 1000000,
     };
 
     private static HttpResponseMessage ClientListResponse(string clientId) => new(HttpStatusCode.OK)
@@ -46,7 +46,22 @@ public class UniFiClientServiceTests
         Assert.Equal(HttpMethod.Post, action.Method);
         Assert.EndsWith("/v1/sites/11111111-1111-1111-1111-111111111111/clients/client-uuid-1/actions", action.Path);
         Assert.Contains("\"action\":\"AUTHORIZE_GUEST_ACCESS\"", action.Body);
-        Assert.Contains("\"timeLimitMinutes\":43200", action.Body);
+        Assert.Contains("\"timeLimitMinutes\":1000000", action.Body);
+    }
+
+    [Fact]
+    public async Task AuthorizeGuestAsync_WithExplicitDuration_SendsThatDurationInsteadOfConfiguredDefault()
+    {
+        var handler = new FakeHttpMessageHandler(ClientListResponse("client-uuid-1"), new HttpResponseMessage(HttpStatusCode.OK));
+        var settings = DefaultSettings();
+        settings.AuthorizeDurationMinutes = 43200;
+        var service = new UniFiClientService(Options.Create(settings), NullLogger<UniFiClientService>.Instance, handler);
+
+        await service.AuthorizeGuestAsync("AA:BB:CC:DD:EE:FF", 1440, CancellationToken.None);
+
+        var action = handler.Requests[1];
+        Assert.Contains("\"action\":\"AUTHORIZE_GUEST_ACCESS\"", action.Body);
+        Assert.Contains("\"timeLimitMinutes\":1440", action.Body);
     }
 
     [Fact]
