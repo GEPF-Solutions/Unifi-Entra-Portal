@@ -83,6 +83,11 @@ public class GuestController : ControllerBase
             return StatusCode(StatusCodes.Status502BadGateway, new { success = false, error = "unifi_authorize_failed" });
         }
 
-        return Ok(new { success = true });
+        // Computed here (rather than left for the frontend to derive from
+        // GuestSessionHours) so the Connected screen's "valid until" time
+        // reflects when this authorization actually started, not an
+        // estimate that could drift if the request took a while to process.
+        var expiresAtUtc = DateTime.UtcNow.AddMinutes(_uniFiSettings.GuestAuthorizeDurationMinutes);
+        return Ok(new { success = true, expiresAtUtc });
     }
 }

@@ -1,0 +1,43 @@
+import type { CSSProperties, PropsWithChildren, ReactNode } from 'react';
+import type { PortalConfig } from '../../branding/defaultConfig';
+
+interface PortalLayoutProps extends PropsWithChildren {
+    /** Branding/copy driving the hero image, logo and accent color. */
+    config: PortalConfig;
+    /**
+     * Shrinks the hero region on phone-width layouts, matching the design's
+     * behavior of a tall hero only on the Choose step and a compact one on
+     * every other step. Ignored on wide layouts, where the hero always
+     * fills the available height.
+     */
+    compactHero?: boolean;
+    /** Extra content rendered in the hero's top row, after the logo (e.g. none today — reserved for a future language switcher). */
+    heroTopExtra?: ReactNode;
+}
+
+/**
+ * The captive portal's shared shell: a hero image region (phone: top band,
+ * wide ≥900px: left column) plus a scrollable content panel, matching
+ * design_handoff_wlan_captive_portal/design/Portal.dc.html. Renders the
+ * operator's logo/hero image from `config`, falling back to a striped
+ * placeholder / no logo when unset.
+ */
+export function PortalLayout({ config, compactHero = false, heroTopExtra, children }: PortalLayoutProps) {
+    return (
+        <div className="portal-shell" style={{ '--color-accent': config.accentColor } as CSSProperties}>
+            <div className={`portal-hero${compactHero ? ' portal-hero--compact' : ''}`}>
+                {config.heroImageUrl && <img className="portal-hero-img" src={config.heroImageUrl} alt="" />}
+                <div className="portal-hero-fade" />
+                <div className="portal-hero-top">
+                    {config.logoUrl && (
+                        <div className={`portal-logo-wrap${config.logoPlate ? ' portal-logo-wrap--plate' : ''}`}>
+                            <img className="portal-logo" src={config.logoUrl} alt={config.orgName} />
+                        </div>
+                    )}
+                    {heroTopExtra}
+                </div>
+            </div>
+            <div className="portal-panel">{children}</div>
+        </div>
+    );
+}
