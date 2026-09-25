@@ -31,6 +31,13 @@
   overflow: hidden;
   flex: 0 0 290px;
   transition: flex-basis 0.35s ease;
+  background: var(--color-bg);
+}
+
+/* Only the no-image placeholder gets the striped texture — with a real
+   hero image, mix-blend-mode on .portal-hero-img blends against whatever
+   sits behind it, so a striped backdrop would show through the photo. */
+.portal-hero--placeholder {
   background: repeating-linear-gradient(135deg, var(--color-surface) 0 10px, var(--color-bg) 10px 20px);
 }
 
