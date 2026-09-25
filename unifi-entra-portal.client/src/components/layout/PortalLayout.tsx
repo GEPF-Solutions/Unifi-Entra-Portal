@@ -23,7 +23,7 @@ interface PortalLayoutProps extends PropsWithChildren {
 export function PortalLayout({ config, compactHero = false, children }: PortalLayoutProps) {
     return (
         <div className="portal-shell" style={{ '--color-accent': config.accentColor } as CSSProperties}>
-            <div className={`portal-hero${compactHero ? ' portal-hero--compact' : ''}`}>
+            <div className={`portal-hero${compactHero ? ' portal-hero--compact' : ''}${config.heroImageUrl ? '' : ' portal-hero--placeholder'}`}>
                 {config.heroImageUrl && <img className="portal-hero-img" src={config.heroImageUrl} alt="" />}
                 <div className="portal-hero-fade" />
                 <div className="portal-hero-top">
