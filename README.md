@@ -66,29 +66,90 @@ separates nesting) or, for local dev, copied from
 [`appsettings.example.json`](Unifi-Entra-Portal.Server/appsettings.example.json)
 into a gitignored `appsettings.Development.json`.
 
+#### Entra ID (`AzureAd`)
+
 | Key | Required | What it is |
 |---|---|---|
 | `AzureAd__TenantId` | Yes | Your Entra tenant ID. |
 | `AzureAd__ClientId` | Yes | App registration's client ID. |
 | `AzureAd__ClientSecret` | Yes | App registration's client secret. Also used app-only (client credentials) for the revalidation job — grant it Graph `User.Read.All`, plus `GroupMember.Read.All` if you use `Gating__AllowedGroupIds`, with admin consent. |
-| `UniFi__ApiKey` | Yes | A Site Manager API key (unifi.ui.com → Settings → API Keys), or a locally-created one if `UseCloudConnector` is `false`. |
-| `UniFi__UseCloudConnector` | Default `true` | Route calls through Ubiquiti's cloud connector rather than directly — needed unless this app has a direct network path to your console. |
-| `UniFi__ConsoleId` | If cloud connector | From `GET https://api.ui.com/v1/hosts`. |
-| `UniFi__ControllerUrl` | If *not* cloud connector | Base URL of the console on your local network. |
+| `AzureAd__Instance` | Default `https://login.microsoftonline.com/` | Entra authority base URL. Only needs changing for a sovereign cloud (e.g. Azure Government, China 21Vianet). |
+| `AzureAd__CallbackPath` | Default `/signin-oidc` | Local path the OIDC redirect comes back to after sign-in. Must match the redirect URI registered on the app registration. |
+
+#### UniFi (`UniFi`)
+
+| Key | Required | What it is |
+|---|---|---|
+| `UniFi__ApiKey` | Yes | A Site Manager API key (unifi.ui.com → Settings → API Keys), or a locally-created one if `UseCloudConnector` is `false`. Sent as the `X-API-Key` header. |
+| `UniFi__UseCloudConnector` | Default `true` | Route calls through Ubiquiti's cloud connector (`api.ui.com`) rather than directly — needed unless this app has a direct network path to your console. |
+| `UniFi__ConsoleId` | If cloud connector | The console's `id` from `GET https://api.ui.com/v1/hosts`. |
+| `UniFi__ControllerUrl` | If *not* cloud connector | Base URL of the console on your local network (e.g. `https://192.168.1.1`). |
 | `UniFi__SiteId` | Yes | A UUID, not the `default` slug — from `GET .../network/integration/v1/sites`, matched on `internalReference`. |
 | `UniFi__GuestNetworkCidr` | Yes, for the guest path | Subnet the guest SSID hands out addresses on (e.g. `10.10.60.0/24`). UniFi's client API reports a device's IP but not its SSID/VLAN, so this is how the guest path verifies a request actually came from the guest network. Guest sign-in is refused, not silently allowed, if this is unset. |
 | `UniFi__AuthorizeDurationMinutes` | Default `1000000` (~1.9yr) | How long a member's device stays authorized before needing UniFi's own expiry as a fallback — see "How it works" above. |
 | `UniFi__GuestAuthorizeDurationMinutes` | Default `1440` (24h) | How long a guest's device stays authorized. |
 | `UniFi__AllowInsecureCertificates` | Default `false` | Only for a self-signed cert on a local (non-cloud-connector) console. |
+
+#### Gating (`Gating`)
+
+| Key | Required | What it is |
+|---|---|---|
 | `Gating__AllowedGroupIds__0`, `__1`, ... | Optional | Entra security group object IDs allowed to use the member path. Empty = any account in the tenant. |
+
+#### Guest terms (`GuestAgb`)
+
+| Key | Required | What it is |
+|---|---|---|
 | `GuestAgb__AgbText` | Recommended | The AGB/terms text shown on the guest path. Ships with an obvious placeholder — replace with real, org-authorized copy. |
+
+#### Revalidation (`Revalidation`)
+
+| Key | Required | What it is |
+|---|---|---|
 | `Revalidation__IntervalHours` | Default `24` | How often the background job re-checks members against Entra. |
+
+#### Reverse proxy (`ForwardedHeaders`)
+
+| Key | Required | What it is |
+|---|---|---|
 | `ForwardedHeaders__TrustAllProxies` | Default `false` | Set `true` only if this instance sits exclusively behind a reverse proxy/ingress that strips client-supplied `X-Forwarded-*` headers (an OpenShift Route, most Kubernetes Ingress controllers). Leave `false` for local dev or anywhere exposing Kestrel directly — trusting these headers unconditionally lets a client spoof `X-Forwarded-Proto: https` and bypass HTTPS redirection. |
 
-Branding (org name, welcome text, logo) lives in
-[`unifi-entra-portal.client/src/branding/config.ts`](unifi-entra-portal.client/src/branding/config.ts)
-so re-skinning the portal for a different org doesn't touch any component
-code.
+#### Database
+
+| Key | Required | What it is |
+|---|---|---|
+| `ConnectionStrings__Portal` | Optional | SQLite connection string, e.g. `Data Source=/app/data/portal.db`. Defaults to `<content root>/data/portal.db`, which is what the Docker image's `/app/data` volume mount (below) maps to — most deployments don't need to set this. |
+
+#### Branding (`PortalBranding`)
+
+Every field the landing/choice screen shows is served at runtime from
+`GET /api/portal/config` (see
+[`PortalController`](Unifi-Entra-Portal.Server/Controllers/PortalController.cs))
+and configured here — nothing org-specific is hardcoded into frontend
+components, so re-skinning the portal for a different org needs no rebuild.
+The frontend's
+[`defaultConfig.ts`](unifi-entra-portal.client/src/branding/defaultConfig.ts)
+only holds neutral fallback values shown while that fetch is in flight.
+
+| Key | Required | What it is |
+|---|---|---|
+| `PortalBranding__OrgName` | Default `Your Organization` | Organization name shown in copy and as the logo's alt text. |
+| `PortalBranding__Ssid` | Optional | SSID shown next to the Wi-Fi icon on the landing screen. |
+| `PortalBranding__AccentColor` | Default `#9184d9` | Accent color (hex) used throughout the portal UI. |
+| `PortalBranding__LogoPath` | Optional | URL path to the org's logo (transparent PNG/SVG recommended), e.g. `/branding/logo.png`, served from `AssetsPath` below. Unset shows no logo. |
+| `PortalBranding__LogoPlate` | Default `false` | Whether to render a light plate behind the logo — useful for logos with dark lettering. |
+| `PortalBranding__FaviconPath` | Optional | URL path to the browser-tab favicon, e.g. `/branding/favicon.png`. Any reasonably square image works — no `.ico` needed. Unset uses the project's bundled default icon. |
+| `PortalBranding__HeroImagePath` | Optional | URL path to the hero photo on the landing screen, e.g. `/branding/hero.jpg`. Unset shows a striped placeholder. |
+| `PortalBranding__Headline` | Default `Welcome to the Wi-Fi` | Headline on the Choose step. |
+| `PortalBranding__Intro` | Default `Choose how you'd like to connect.` | Intro line below the headline on the Choose step. |
+| `PortalBranding__MemberTitle` | Default `Member` | Title of the member (Entra sign-in) choice button. |
+| `PortalBranding__MemberSubtitle` | Default `Sign in with your organization account` | Subtitle of the member choice button. |
+| `PortalBranding__GuestTitle` | Default `Guest` | Title of the anonymous guest choice button. |
+| `PortalBranding__GuestSubtitle` | Default `Internet access on the guest network` | Subtitle of the guest choice button. |
+| `PortalBranding__Tenant` | Optional | Friendly tenant domain shown in the redirect interstitial's URL chip (e.g. `contoso.onmicrosoft.com`) — display only, kept separate from `AzureAd__TenantId` (a GUID). Unset hides the chip. |
+| `PortalBranding__GuestNetworkLabel` | Default `Guest network` | Label for the network row on the guest Connected screen. |
+| `PortalBranding__MemberNetworkLabel` | Default `Member network` | Label for the network row on the member Connected screen. |
+| `PortalBranding__AssetsPath` | Default `wwwroot/branding` | Folder `LogoPath`/`FaviconPath`/`HeroImagePath` are served from (mounted at the `/branding` request path), so a logo/hero/favicon can be swapped in via volume mount without rebuilding the container. Relative paths resolve against the app's content root. |
 
 On the UniFi side: set the guest-enabled SSID(s)' captive portal type to
 "External Portal Server" pointing at this app's public URL, make sure the
