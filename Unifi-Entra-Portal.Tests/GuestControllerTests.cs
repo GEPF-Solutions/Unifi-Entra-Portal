@@ -39,11 +39,27 @@ public class GuestControllerTests
 
         var result = await controller.Authorize(new GuestAgbAuthorizeRequest { Mac = "AA:BB:CC:DD:EE:FF", AgbAccepted = true }, CancellationToken.None);
 
-        Assert.IsType<OkObjectResult>(result);
+        var okResult = Assert.IsType<OkObjectResult>(result);
         // Normalized to lowercase — see GuestController.Authorize.
         uniFiClient.Verify(
             c => c.AuthorizeGuestIfOnGuestNetworkAsync("aa:bb:cc:dd:ee:ff", DefaultGuestAuthorizeDurationMinutes, It.IsAny<CancellationToken>()),
             Times.Once);
+    }
+
+    [Fact]
+    public async Task Authorize_WhenAgbAccepted_ReturnsExpiryMatchingConfiguredGuestDuration()
+    {
+        var uniFiClient = new Mock<IUniFiClientService>();
+        var controller = CreateController(uniFiClient.Object);
+        var beforeCall = DateTime.UtcNow;
+
+        var result = await controller.Authorize(new GuestAgbAuthorizeRequest { Mac = "AA:BB:CC:DD:EE:FF", AgbAccepted = true }, CancellationToken.None);
+
+        var okResult = Assert.IsType<OkObjectResult>(result);
+        var expiresAtUtc = (DateTime?)okResult.Value?.GetType().GetProperty("expiresAtUtc")?.GetValue(okResult.Value);
+        Assert.NotNull(expiresAtUtc);
+        var expectedExpiry = beforeCall.AddMinutes(DefaultGuestAuthorizeDurationMinutes);
+        Assert.True(Math.Abs((expiresAtUtc!.Value - expectedExpiry).TotalSeconds) < 5);
     }
 
     [Fact]

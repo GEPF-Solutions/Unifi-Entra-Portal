@@ -4,6 +4,7 @@ using Microsoft.AspNetCore.Authentication.OpenIdConnect;
 using Microsoft.AspNetCore.HttpOverrides;
 using Microsoft.AspNetCore.RateLimiting;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.FileProviders;
 using Microsoft.Extensions.Options;
 using Microsoft.Identity.Web;
 using Unifi_Entra_Portal.Server.DbModel;
@@ -31,6 +32,7 @@ namespace Unifi_Entra_Portal.Server
             builder.Services.Configure<AzureAdCredentialsSettings>(builder.Configuration.GetSection("AzureAd"));
             builder.Services.Configure<ForwardedHeadersSettings>(builder.Configuration.GetSection("ForwardedHeaders"));
             builder.Services.Configure<GuestAgbSettings>(builder.Configuration.GetSection("GuestAgb"));
+            builder.Services.Configure<PortalBrandingSettings>(builder.Configuration.GetSection("PortalBranding"));
 
             builder.Services
                 .AddAuthentication(OpenIdConnectDefaults.AuthenticationScheme)
@@ -152,6 +154,26 @@ namespace Unifi_Entra_Portal.Server
 
             app.UseDefaultFiles();
             app.MapStaticAssets();
+
+            // Serves operator-supplied branding assets (logo, hero image)
+            // from a physical folder outside the published wwwroot, so a
+            // container image with no branding baked in can have a
+            // deployment mount its own logo/hero over this path (e.g. a
+            // Kubernetes ConfigMap/volume) without rebuilding the image.
+            // PortalBrandingSettings.LogoPath/HeroImagePath are the
+            // resulting "/branding/..." URLs. Relative AssetsPath is
+            // resolved against the content root, matching how the SQLite
+            // data directory is resolved above.
+            var brandingSettings = app.Services.GetRequiredService<IOptions<PortalBrandingSettings>>().Value;
+            var brandingAssetsPath = Path.IsPathRooted(brandingSettings.AssetsPath)
+                ? brandingSettings.AssetsPath
+                : Path.Combine(app.Environment.ContentRootPath, brandingSettings.AssetsPath);
+            Directory.CreateDirectory(brandingAssetsPath);
+            app.UseStaticFiles(new StaticFileOptions
+            {
+                FileProvider = new PhysicalFileProvider(brandingAssetsPath),
+                RequestPath = "/branding",
+            });
 
             // Configure the HTTP request pipeline.
 

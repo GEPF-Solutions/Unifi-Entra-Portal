@@ -1,8 +1,10 @@
 using Microsoft.AspNetCore.Authentication.Cookies;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.Extensions.Options;
 using Microsoft.Identity.Web;
 using Unifi_Entra_Portal.Server.Dto;
+using Unifi_Entra_Portal.Server.Infrastructure;
 using Unifi_Entra_Portal.Server.Repository.Abstractions;
 using Unifi_Entra_Portal.Server.Services.Abstractions;
 
@@ -11,7 +13,9 @@ namespace Unifi_Entra_Portal.Server.Controllers;
 /// <summary>
 /// Handles the captive portal's device-authorization step: once a guest has
 /// signed in via Entra ID and passes the configured gating check, this
-/// authorizes their device's MAC address on the UniFi network.
+/// authorizes their device's MAC address on the UniFi network. Also serves
+/// the anonymous, read-only branding/config endpoint the frontend uses to
+/// render the landing screen.
 /// </summary>
 [ApiController]
 [Route("api/portal")]
@@ -20,18 +24,55 @@ public class PortalController : ControllerBase
     private readonly IUniFiClientService _uniFiClient;
     private readonly IGatingService _gatingService;
     private readonly IAuthorizedGuestRepository _authorizedGuestRepository;
+    private readonly PortalBrandingSettings _brandingSettings;
+    private readonly UniFiSettings _uniFiSettings;
     private readonly ILogger<PortalController> _logger;
 
     public PortalController(
         IUniFiClientService uniFiClient,
         IGatingService gatingService,
         IAuthorizedGuestRepository authorizedGuestRepository,
+        IOptions<PortalBrandingSettings> brandingSettings,
+        IOptions<UniFiSettings> uniFiSettings,
         ILogger<PortalController> logger)
     {
         _uniFiClient = uniFiClient;
         _gatingService = gatingService;
         _authorizedGuestRepository = authorizedGuestRepository;
+        _brandingSettings = brandingSettings.Value;
+        _uniFiSettings = uniFiSettings.Value;
         _logger = logger;
+    }
+
+    /// <summary>
+    /// Returns the branding and copy for the captive portal landing screen.
+    /// Anonymous and read-only — lets the frontend render operator-specific
+    /// branding without baking it into the bundle, so the same container
+    /// image can be reused across deployments.
+    /// </summary>
+    [HttpGet("config")]
+    public IActionResult GetConfig()
+    {
+        return Ok(new PortalConfigDto
+        {
+            OrgName = _brandingSettings.OrgName,
+            Ssid = _brandingSettings.Ssid,
+            AccentColor = _brandingSettings.AccentColor,
+            LogoUrl = _brandingSettings.LogoPath,
+            LogoPlate = _brandingSettings.LogoPlate,
+            FaviconUrl = _brandingSettings.FaviconPath,
+            HeroImageUrl = _brandingSettings.HeroImagePath,
+            Headline = _brandingSettings.Headline,
+            Intro = _brandingSettings.Intro,
+            MemberTitle = _brandingSettings.MemberTitle,
+            MemberSubtitle = _brandingSettings.MemberSubtitle,
+            GuestTitle = _brandingSettings.GuestTitle,
+            GuestSubtitle = _brandingSettings.GuestSubtitle,
+            Tenant = _brandingSettings.Tenant,
+            GuestNetworkLabel = _brandingSettings.GuestNetworkLabel,
+            MemberNetworkLabel = _brandingSettings.MemberNetworkLabel,
+            GuestSessionHours = _uniFiSettings.GuestAuthorizeDurationMinutes / 60.0,
+        });
     }
 
     /// <summary>

@@ -12,6 +12,8 @@ interface UseAuthResult extends AuthState {
     loading: boolean;
     /** Builds the URL to navigate the browser to in order to sign in, returning to `returnUrl` afterward. */
     buildLoginUrl: (returnUrl: string) => string;
+    /** Builds the URL to navigate the browser to in order to sign out, returning to `returnUrl` afterward. */
+    buildLogoutUrl: (returnUrl: string) => string;
 }
 
 /**
@@ -56,5 +58,10 @@ export function useAuth(): UseAuthResult {
         [],
     );
 
-    return { ...state, loading, buildLoginUrl };
+    const buildLogoutUrl = useCallback(
+        (returnUrl: string) => `/api/auth/logout?returnUrl=${encodeURIComponent(returnUrl)}`,
+        [],
+    );
+
+    return { ...state, loading, buildLoginUrl, buildLogoutUrl };
 }
