@@ -58,22 +58,6 @@ flowchart TD
   it — otherwise a device on the internal network could hit this endpoint
   directly and skip Entra sign-in entirely.
 
-## Stack
-
-- **Backend:** ASP.NET Core (`net10.0`), `Microsoft.Identity.Web` for the
-  OIDC flow, EF Core + SQLite for tracking authorized members.
-- **Frontend:** React + Vite + TypeScript.
-- **UniFi side:** the official Network Integration API (API-key auth), not
-  the legacy local-admin/cookie login — this also means it works against
-  UniFi Fabric-enrolled consoles, which don't support local admin accounts
-  at all.
-
-```
-Unifi-Entra-Portal.Server/    ASP.NET Core API (auth, UniFi client, portal endpoints)
-unifi-entra-portal.client/    React/Vite/TS frontend
-Unifi-Entra-Portal.Tests/     xUnit tests
-```
-
 ## Configuration
 
 Nothing org-specific lives in the repo. Every key below can be set as an
