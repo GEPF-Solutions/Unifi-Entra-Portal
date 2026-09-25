@@ -74,6 +74,23 @@ public class UniFiSettings
     public int GuestAuthorizeDurationMinutes { get; set; } = 1440;
 
     /// <summary>
+    /// CIDR range (e.g. "10.10.60.0/24") of the subnet the guest network
+    /// hands out addresses on. UniFi's captive-portal authorization is
+    /// per-MAC, not per-network — it just unblocks whatever network a
+    /// device is already connected to, which is fixed at Wi-Fi association
+    /// time (see Context.md, "Dual guest/member portal"). Without this
+    /// check, a device actually connected to the internal SSID could hit
+    /// the anonymous guest-authorize path and get itself authorized on the
+    /// internal network without ever going through Entra sign-in. UniFi's
+    /// client API does not report which SSID/VLAN a client is on, but it
+    /// does report the client's live-assigned IP — which is a reliable
+    /// proxy once (as here) the guest network has its own distinct subnet.
+    /// Required for the guest path: if unset, guest-authorize requests are
+    /// refused rather than silently trusting an unverified MAC.
+    /// </summary>
+    public string GuestNetworkCidr { get; set; } = string.Empty;
+
+    /// <summary>
     /// Whether to accept the console's TLS certificate without validation.
     /// Only relevant when <see cref="UseCloudConnector"/> is false and the
     /// console has a self-signed certificate on the local network.

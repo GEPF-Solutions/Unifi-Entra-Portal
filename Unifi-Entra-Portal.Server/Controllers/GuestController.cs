@@ -75,7 +75,15 @@ public class GuestController : ControllerBase
 
         try
         {
-            await _uniFiClient.AuthorizeGuestAsync(mac, _uniFiSettings.GuestAuthorizeDurationMinutes, cancellationToken);
+            await _uniFiClient.AuthorizeGuestIfOnGuestNetworkAsync(mac, _uniFiSettings.GuestAuthorizeDurationMinutes, cancellationToken);
+        }
+        catch (GuestNotOnGuestNetworkException ex)
+        {
+            // Not a UniFi failure — a deliberate rejection. Most likely a
+            // device actually connected to the internal SSID trying to
+            // skip Entra sign-in via this anonymous path.
+            _logger.LogWarning(ex, "Guest authorize request for {Mac} rejected: not on the configured guest network", mac);
+            return StatusCode(StatusCodes.Status403Forbidden, new { success = false, error = "not_on_guest_network" });
         }
         catch (Exception ex)
         {
