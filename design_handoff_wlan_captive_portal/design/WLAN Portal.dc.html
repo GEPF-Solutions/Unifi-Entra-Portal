@@ -1,0 +1,165 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet data-dc-atomics><meta name="design_doc_mode" content="canvas"><link rel="stylesheet" href="nocturne.css"><link rel="stylesheet" href="https://unpkg.com/@phosphor-icons/web@2.1.1/src/regular/style.css"><style>body{margin:0;background:var(--color-bg)}a{color:var(--color-accent-300)}a:hover{color:var(--color-accent-200)}.dv-turn{padding:44px 48px 36px;scroll-margin-top:16px}.dv-thd{display:flex;align-items:baseline;gap:10px;margin:0 0 10px}.dv-tid{font:600 10px ui-monospace,Menlo,monospace;padding:3px 7px;background:var(--color-text);color:var(--color-bg);border-radius:4px;text-decoration:none}.dv-tname{font:500 15px/1.2 var(--font-body);color:var(--color-text)}.dv-opts{display:flex;flex-wrap:wrap;gap:56px 44px;align-items:flex-start}.dv-opt{flex:none;display:flex;flex-direction:column;gap:12px;scroll-margin-top:16px}.dv-oid{font:600 10.5px ui-monospace,Menlo,monospace;padding:3px 7px;background:var(--color-neutral-800);color:var(--color-text);border-radius:5px;text-decoration:none}.dv-olabel{display:flex;align-items:baseline;gap:8px;font:400 12px/1.3 var(--font-body);color:var(--color-neutral-400)}.dv-opt:target .dv-oid{background:var(--color-accent);color:var(--color-bg)}.dv-next{margin:32px 0 0;font:12px/1.5 var(--font-body);color:var(--color-neutral-500)}</style></helmet>
+<section class="dv-turn" id="t1">
+  <div class="dv-thd"><a class="dv-tid" href="#t1">1</a><span class="dv-tname">WLAN captive portal · Feuerwehr Fußach</span></div>
+  <p style="max-width:760px; margin:0 0 36px; font-size:13px; line-height:1.6; color:var(--color-neutral-400); text-wrap:pretty">Member → Microsoft 365 sign-in → member VLAN. Guest → accept terms → guest VLAN. There is no admin UI: every customisable value comes from environment variables on the Kubernetes deployment (<a class="dv-oid" href="#1c">1c</a>). Use the Tweaks panel to preview accent, language, logo plate and hero image. All phones are clickable.</p>
+  <div class="dv-opts">
+
+    <div class="dv-opt" id="1a">
+      <div class="dv-olabel"><a class="dv-oid" href="#1a">1a</a>Phone · the full flow</div>
+      <div style="display:flex; gap:28px; flex-wrap:wrap">
+        <sc-for list="{{phones}}" as="p" hint-placeholder-count="4">
+          <div style="display:flex; flex-direction:column; gap:10px">
+            <div style="width:375px; height:780px; padding:10px; border-radius:50px; background:var(--color-neutral-900); box-shadow:var(--shadow-md)">
+              <div style="width:100%; height:100%; border-radius:40px; overflow:hidden; background:var(--color-bg); display:flex; flex-direction:column">
+                <div style="height:44px; flex:none; display:flex; align-items:center; justify-content:space-between; padding:0 30px; font-size:14px; font-weight:600; color:var(--color-text)"><span>9:41</span><span style="display:flex; gap:5px; font-size:16px"><i class="ph ph-cell-signal-full"></i><i class="ph ph-wifi-high"></i><i class="ph ph-battery-full"></i></span></div>
+                <div style="flex:1; min-height:0; position:relative">
+                  <dc-import name="Portal" config="{{cfg}}" layout="phone" initial-step="{{p.step}}" hint-size="100%,100%" style="position:absolute; inset:0"></dc-import>
+                </div>
+              </div>
+            </div>
+            <div style="font-size:12px; color:var(--color-neutral-400); padding-left:12px">{{p.label}}</div>
+          </div>
+        </sc-for>
+      </div>
+    </div>
+
+    <div class="dv-opt" id="1b">
+      <div class="dv-olabel"><a class="dv-oid" href="#1b">1b</a>Laptop · captive-portal window</div>
+      <div style="width:1280px; border-radius:14px; overflow:hidden; background:var(--color-neutral-900); box-shadow:var(--shadow-md)">
+        <div style="height:40px; display:flex; align-items:center; gap:8px; padding:0 16px; position:relative">
+          <span style="width:12px; height:12px; border-radius:50%; background:var(--color-neutral-700)"></span>
+          <span style="width:12px; height:12px; border-radius:50%; background:var(--color-neutral-700)"></span>
+          <span style="width:12px; height:12px; border-radius:50%; background:var(--color-neutral-700)"></span>
+          <div style="position:absolute; left:50%; transform:translateX(-50%); display:flex; align-items:center; gap:6px; padding:4px 14px; border-radius:6px; background:var(--color-bg); font-size:12px; color:var(--color-neutral-400)"><i class="ph ph-lock-simple"></i>portal.ff-fussach.at</div>
+        </div>
+        <div style="height:760px; position:relative">
+          <dc-import name="Portal" config="{{cfg}}" layout="laptop" hint-size="100%,100%" style="position:absolute; inset:0"></dc-import>
+        </div>
+      </div>
+    </div>
+
+    <div class="dv-opt" id="1c">
+      <div class="dv-olabel"><a class="dv-oid" href="#1c">1c</a>Configuration · environment variables (replaces the admin UI)</div>
+      <div style="width:1280px; border-radius:14px; overflow:hidden; background:var(--color-bg); box-shadow:var(--shadow-md); color:var(--color-text); display:grid; grid-template-columns:minmax(0,1fr) 460px">
+        <div style="padding:28px 32px 32px; display:flex; flex-direction:column; gap:32px">
+          <div style="display:flex; flex-direction:column; gap:6px">
+            <h3 style="margin:0; font-size:22px">Configuration</h3>
+            <p style="margin:0; font-size:13px; color:var(--color-neutral-400); max-width:560px; text-wrap:pretty">Read once at startup. Images and terms are files mounted from a ConfigMap; their variables hold the path. Text variables exist per language, where <span style="font-family:ui-monospace,Menlo,monospace; color:var(--color-text)">{LANG}</span> is <span style="font-family:ui-monospace,Menlo,monospace; color:var(--color-text)">DE</span>, <span style="font-family:ui-monospace,Menlo,monospace; color:var(--color-text)">EN</span>, …</p>
+          </div>
+          <sc-for list="{{groups}}" as="g" hint-placeholder-count="3">
+            <div style="display:flex; flex-direction:column; gap:6px">
+              <h6 style="margin:0; color:var(--color-neutral-400)">{{g.title}}</h6>
+              <table class="table" style="font-size:13px">
+                <thead><tr><th style="width:38%">Variable</th><th style="width:34%">Example</th><th>Controls</th></tr></thead>
+                <tbody>
+                  <sc-for list="{{g.rows}}" as="r" hint-placeholder-count="4">
+                    <tr><td style="font-family:ui-monospace,Menlo,monospace; font-size:12px; color:var(--color-accent-300)">{{r.name}}</td><td style="font-family:ui-monospace,Menlo,monospace; font-size:12px; color:var(--color-neutral-300); overflow-wrap:anywhere">{{r.example}}</td><td style="color:var(--color-neutral-400)">{{r.desc}}</td></tr>
+                  </sc-for>
+                </tbody>
+              </table>
+            </div>
+          </sc-for>
+        </div>
+        <div style="padding:28px 28px 32px; display:flex; flex-direction:column; gap:12px; background:color-mix(in srgb, var(--color-neutral-900) 60%, var(--color-bg)); border-left:1px solid var(--color-divider)">
+          <div style="display:flex; align-items:center; gap:8px; font-size:12px; color:var(--color-neutral-400)"><i class="ph ph-file-code"></i>deployment.yaml (excerpt)</div>
+          <pre style="margin:0; padding:16px 18px; border-radius:8px; background:var(--color-bg); box-shadow:var(--shadow-sm); font:12px/1.65 ui-monospace,Menlo,monospace; color:var(--color-neutral-300); white-space:pre; overflow:auto">{{yaml}}</pre>
+          <div style="display:flex; gap:8px; align-items:flex-start; font-size:12px; line-height:1.5; color:var(--color-neutral-500)"><i class="ph ph-info" style="font-size:14px; margin-top:1px"></i>Unset variables fall back to neutral defaults: no logo, striped hero, English text, accent #9184d9.</div>
+        </div>
+      </div>
+    </div>
+
+  </div>
+  <p class="dv-next">Try next: "a lighter daytime theme" · "add a voucher-code option for events" · "show the error state when Microsoft sign-in fails"</p>
+</section>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props="{&quot;accent&quot;:{&quot;editor&quot;:&quot;color&quot;,&quot;options&quot;:[&quot;#e0695f&quot;,&quot;#4aa3df&quot;,&quot;#9184d9&quot;,&quot;#d9a441&quot;],&quot;default&quot;:&quot;#e0695f&quot;,&quot;tsType&quot;:&quot;string&quot;,&quot;section&quot;:&quot;Preview config&quot;},&quot;defaultLang&quot;:{&quot;editor&quot;:&quot;enum&quot;,&quot;options&quot;:[&quot;de&quot;,&quot;en&quot;],&quot;default&quot;:&quot;de&quot;,&quot;tsType&quot;:&quot;'de'|'en'&quot;,&quot;section&quot;:&quot;Preview config&quot;},&quot;logoPlate&quot;:{&quot;editor&quot;:&quot;boolean&quot;,&quot;default&quot;:true,&quot;tsType&quot;:&quot;boolean&quot;,&quot;section&quot;:&quot;Preview config&quot;},&quot;heroImage&quot;:{&quot;editor&quot;:&quot;text&quot;,&quot;default&quot;:&quot;&quot;,&quot;tsType&quot;:&quot;string&quot;,&quot;section&quot;:&quot;Preview config&quot;}}">
+const TEXT = {
+  de: { headline: 'Willkommen im WLAN der Feuerwehr Fußach', intro: 'Wähle, wie du dich verbinden möchtest.', memberTitle: 'Mitglied', memberSub: 'Mit Microsoft 365 anmelden', guestTitle: 'Gast', guestSub: 'Internetzugang im Gastnetz', terms: 'Der Gastzugang ist kostenlos und auf 24 Stunden begrenzt.\n\nBitte nutze das Netz verantwortungsvoll: keine rechtswidrigen Inhalte, kein Filesharing, keine Angriffe auf andere Geräte.\n\nDas Gastnetz ist vom internen Netz der Feuerwehr getrennt. Verbindungsdaten werden gemäß DSGVO protokolliert. Der Zugang kann jederzeit gesperrt werden.' },
+  en: { headline: 'Welcome to the Feuerwehr Fußach Wi‑Fi', intro: 'Choose how you’d like to connect.', memberTitle: 'Member', memberSub: 'Sign in with Microsoft 365', guestTitle: 'Guest', guestSub: 'Internet access on the guest network', terms: 'Guest access is free and limited to 24 hours.\n\nPlease use the network responsibly: no illegal content, no file sharing, no attacks on other devices.\n\nThe guest network is separated from the fire department’s internal network. Connection data is logged in line with GDPR. Access can be revoked at any time.' }
+};
+const GROUPS = [
+  { title: 'Branding', rows: [
+    { name: 'PORTAL_ORG_NAME', example: 'Feuerwehr Fußach', desc: 'Organisation name in copy and alt text' },
+    { name: 'PORTAL_LOGO', example: '/config/branding/logo.png', desc: 'Logo, top left. Transparent PNG or SVG' },
+    { name: 'PORTAL_LOGO_PLATE', example: 'true', desc: 'Light plate behind dark logos' },
+    { name: 'PORTAL_HERO_IMAGE', example: '/config/branding/hero.jpg', desc: 'Hero photo. Dark images blend best' },
+    { name: 'PORTAL_ACCENT', example: '#e0695f', desc: 'Accent for lines, icons and primary button' }
+  ]},
+  { title: 'Language & text', rows: [
+    { name: 'PORTAL_LANGUAGES', example: 'de,en', desc: 'Languages offered in the switcher' },
+    { name: 'PORTAL_DEFAULT_LANG', example: 'de', desc: 'Language on first load' },
+    { name: 'PORTAL_TEXT_{LANG}_HEADLINE', example: 'Willkommen im WLAN …', desc: 'Start screen headline' },
+    { name: 'PORTAL_TEXT_{LANG}_INTRO', example: 'Wähle, wie du dich …', desc: 'Line under the headline' },
+    { name: 'PORTAL_TEXT_{LANG}_MEMBER_TITLE / _SUBTITLE', example: 'Mitglied / Mit Microsoft 365 …', desc: 'Member button' },
+    { name: 'PORTAL_TEXT_{LANG}_GUEST_TITLE / _SUBTITLE', example: 'Gast / Internetzugang …', desc: 'Guest button' },
+    { name: 'PORTAL_TERMS_{LANG}', example: '/config/terms/de.md', desc: 'Guest terms of use, Markdown file' }
+  ]},
+  { title: 'Network & sign-in', rows: [
+    { name: 'PORTAL_SSID', example: 'FF-Fussach', desc: 'Network name shown above the headline' },
+    { name: 'MEMBER_VLAN', example: '10', desc: 'VLAN after Microsoft 365 sign-in' },
+    { name: 'GUEST_VLAN', example: '30', desc: 'VLAN after accepting the terms' },
+    { name: 'GUEST_SESSION_HOURS', example: '24', desc: 'Guest access duration' },
+    { name: 'M365_TENANT', example: 'ff-fussach.onmicrosoft.com', desc: 'Entra ID tenant for member sign-in' }
+  ]}
+];
+const YAML = `env:
+  - name: PORTAL_ORG_NAME
+    value: "Feuerwehr Fußach"
+  - name: PORTAL_ACCENT
+    value: "#e0695f"
+  - name: PORTAL_LOGO
+    value: /config/branding/logo.png
+  - name: PORTAL_LOGO_PLATE
+    value: "true"
+  - name: PORTAL_HERO_IMAGE
+    value: /config/branding/hero.jpg
+  - name: PORTAL_DEFAULT_LANG
+    value: de
+  - name: PORTAL_TEXT_DE_HEADLINE
+    value: "Willkommen im WLAN der Feuerwehr Fußach"
+  - name: PORTAL_TERMS_DE
+    value: /config/terms/de.md
+  - name: GUEST_VLAN
+    value: "30"
+  - name: M365_TENANT
+    valueFrom:
+      secretKeyRef: { name: m365, key: tenant }
+volumeMounts:
+  - name: portal-config
+    mountPath: /config
+volumes:
+  - name: portal-config
+    configMap:
+      name: ff-fussach-portal`;
+
+class Component extends DCLogic {
+  renderVals() {
+    const p = this.props;
+    const cfg = {
+      accent: p.accent ?? '#e0695f', logoUrl: 'assets/logo-fussach.png', logoPlate: p.logoPlate ?? true,
+      heroUrl: p.heroImage || null, orgName: 'Feuerwehr Fußach', ssid: 'FF-Fussach', memberVlan: 10, guestVlan: 30,
+      sessionHours: 24, tenant: 'ff-fussach.onmicrosoft.com', defaultLang: p.defaultLang ?? 'de', text: TEXT
+    };
+    return {
+      cfg, groups: GROUPS, yaml: YAML,
+      phones: [
+        { step: 'choose', label: 'Start · choose member or guest' },
+        { step: 'terms', label: 'Guest · accept terms' },
+        { step: 'connected', label: 'Guest · connected' },
+        { step: 'redirect', label: 'Member · handing off to Microsoft 365' }
+      ]
+    };
+  }
+}
+</script>
+</body>
+</html>

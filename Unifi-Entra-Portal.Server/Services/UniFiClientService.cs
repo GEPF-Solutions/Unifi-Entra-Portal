@@ -1,3 +1,4 @@
+using System.Net;
 using System.Net.Http.Json;
 using System.Text.Json;
 using Microsoft.Extensions.Options;
@@ -50,8 +51,26 @@ public class UniFiClientService : IUniFiClientService, IDisposable
         SendGuestActionAsync(macAddress, "AUTHORIZE_GUEST_ACCESS", _settings.AuthorizeDurationMinutes, cancellationToken);
 
     /// <inheritdoc />
-    public Task AuthorizeGuestAsync(string macAddress, int durationMinutes, CancellationToken cancellationToken) =>
-        SendGuestActionAsync(macAddress, "AUTHORIZE_GUEST_ACCESS", durationMinutes, cancellationToken);
+    public async Task AuthorizeGuestIfOnGuestNetworkAsync(string macAddress, int durationMinutes, CancellationToken cancellationToken)
+    {
+        if (string.IsNullOrWhiteSpace(_settings.GuestNetworkCidr))
+        {
+            throw new InvalidOperationException(
+                "UniFi:GuestNetworkCidr is not configured; refusing to authorize via the anonymous guest path without a way to verify network membership.");
+        }
+
+        var guestNetwork = IPNetwork.Parse(_settings.GuestNetworkCidr);
+
+        var client = await FindClientByMacAsync(_client, macAddress, cancellationToken)
+            ?? throw new InvalidOperationException($"No connected UniFi client found with MAC address {macAddress}.");
+
+        if (client.IpAddress is null || !IPAddress.TryParse(client.IpAddress, out var clientIp) || !guestNetwork.Contains(clientIp))
+        {
+            throw new GuestNotOnGuestNetworkException(macAddress);
+        }
+
+        await SendClientActionAsync(client.Id, macAddress, "AUTHORIZE_GUEST_ACCESS", durationMinutes, cancellationToken);
+    }
 
     /// <inheritdoc />
     public Task UnauthorizeGuestAsync(string macAddress, CancellationToken cancellationToken) =>
@@ -66,9 +85,14 @@ public class UniFiClientService : IUniFiClientService, IDisposable
 
     private async Task SendGuestActionAsync(string macAddress, string action, int? minutes, CancellationToken cancellationToken)
     {
-        var clientId = await FindClientIdByMacAsync(_client, macAddress, cancellationToken)
+        var client = await FindClientByMacAsync(_client, macAddress, cancellationToken)
             ?? throw new InvalidOperationException($"No connected UniFi client found with MAC address {macAddress}.");
 
+        await SendClientActionAsync(client.Id, macAddress, action, minutes, cancellationToken);
+    }
+
+    private async Task SendClientActionAsync(string clientId, string macAddress, string action, int? minutes, CancellationToken cancellationToken)
+    {
         object body = minutes.HasValue
             ? new { action, timeLimitMinutes = minutes.Value }
             : new { action };
@@ -80,18 +104,19 @@ public class UniFiClientService : IUniFiClientService, IDisposable
     }
 
     /// <summary>
-    /// Looks up a connected client's internal UUID by MAC address via the
-    /// site's clients list, filtered server-side on the "macAddress" field.
-    /// Returns null if no connected client currently has that MAC.
+    /// Looks up a connected client's internal UUID (and last-known IP) by
+    /// MAC address via the site's clients list, filtered server-side on the
+    /// "macAddress" field. Returns null if no connected client currently
+    /// has that MAC.
     /// </summary>
-    private async Task<string?> FindClientIdByMacAsync(HttpClient client, string macAddress, CancellationToken cancellationToken)
+    private async Task<ClientSummary?> FindClientByMacAsync(HttpClient client, string macAddress, CancellationToken cancellationToken)
     {
         var filter = Uri.EscapeDataString($"macAddress.eq('{macAddress}')");
         using var response = await client.GetAsync($"v1/sites/{_settings.SiteId}/clients?filter={filter}", cancellationToken);
         response.EnsureSuccessStatusCode();
 
         var payload = await response.Content.ReadFromJsonAsync<ClientListResponse>(ResponseJsonOptions, cancellationToken);
-        return payload?.Data?.FirstOrDefault()?.Id;
+        return payload?.Data?.FirstOrDefault();
     }
 
     private string BuildBaseUrl() => _settings.UseCloudConnector
@@ -111,5 +136,13 @@ public class UniFiClientService : IUniFiClientService, IDisposable
 
     private record ClientListResponse(ClientSummary[]? Data);
 
-    private record ClientSummary(string Id);
+    /// <summary>
+    /// UniFi's client object is minimal — confirmed against the live API
+    /// (2026-09-25) to expose only type/id/name/connectedAt/ipAddress/
+    /// macAddress/uplinkDeviceId/access.type, with no SSID/network/VLAN
+    /// field. IpAddress is the only field usable to infer which network a
+    /// client is actually on, hence <see cref="AuthorizeGuestIfOnGuestNetworkAsync"/>
+    /// checking it against a configured subnet rather than a VLAN ID.
+    /// </summary>
+    private record ClientSummary(string Id, string? IpAddress);
 }

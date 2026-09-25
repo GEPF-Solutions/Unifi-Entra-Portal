@@ -66,6 +66,14 @@ export default defineConfig({
             '^/signout-callback-oidc': {
                 target,
                 secure: false
+            },
+            // Operator-supplied branding assets (logo, hero image) — served
+            // by the backend from PortalBrandingSettings.AssetsPath, not
+            // part of the SPA bundle. See PortalController.GetConfig /
+            // Program.cs's "/branding" static files mount.
+            '^/branding': {
+                target,
+                secure: false
             }
         },
         port: parseInt(env.DEV_SERVER_PORT || '51366'),

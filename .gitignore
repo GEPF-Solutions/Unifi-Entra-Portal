@@ -423,6 +423,13 @@ FodyWeavers.xsd
 **/appsettings.Development.json
 **/appsettings.*.local.json
 
+# Locally mounted branding assets (logo/hero) — org-specific, analogous to
+# the ConfigMap volume mount described in PortalBrandingSettings.AssetsPath;
+# never commit a real customer's logo/photo. The wwwroot/.gitkeep placeholder
+# itself stays tracked so a fresh clone always has the directory.
+Unifi-Entra-Portal.Server/wwwroot/branding/*
+!Unifi-Entra-Portal.Server/wwwroot/branding/.gitkeep
+
 # SQLite data file — contains real guest authorization records (Entra
 # object IDs, UPNs) once the app has run, never sample/fixture data.
 **/data/*.db

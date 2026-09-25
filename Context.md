@@ -252,6 +252,48 @@ none is needed** — don't add one; point whoever asks at this paragraph.
   Networks/VLANs) is still a manual step for whoever administers that
   console, not yet done as of this writing.
 
+**Security gap found and fixed (2026-09-25):** since both SSIDs share one
+external portal, the choice screen shows both options to every visitor
+regardless of which SSID they actually joined. UniFi's captive-portal
+authorization is per-MAC, not per-network — it just unblocks whatever
+network a device is already connected to (fixed at Wi-Fi association,
+before the portal loads). That meant a device actually connected to the
+**internal** SSID could click "I'm a guest," hit the anonymous
+`POST /api/guest/authorize` endpoint, and get itself authorized — on the
+internal network — without ever going through Entra sign-in or the
+gating check, and with no `AuthorizedGuest` row for the revalidation job
+to ever catch later.
+
+Fixed by having `GuestController` verify, server-side, that the target
+MAC is actually on the guest network before authorizing it — trusting a
+frontend-supplied `ssid` param wouldn't work, since the anonymous
+endpoint is callable directly (curl, devtools) with any MAC, bypassing
+the frontend entirely. The verification itself can't be "is this MAC on
+VLAN X" — **empirically confirmed against the live console (2026-09-25)**
+that UniFi's client API is genuinely minimal: `GET /v1/sites/{siteId}/clients`
+returns only `type, id, name, connectedAt, ipAddress, macAddress,
+uplinkDeviceId, access.type` — no SSID, network, or VLAN field at all, for
+any client. What *is* available and trustworthy (UniFi-reported, not
+client-supplied) is the client's live-assigned `ipAddress`. Since the
+guest network already has its own subnet (`10.10.60.0/24`), the app checks
+that against a new `UniFi:GuestNetworkCidr` config value
+(`UniFiClientService.AuthorizeGuestIfOnGuestNetworkAsync`) before ever
+calling UniFi's authorize action — fails closed (refuses the request) if
+the CIDR isn't configured or the client's IP can't be determined, rather
+than silently trusting an unverified MAC. Verified live: a real device on
+the internal 192.168.12.x subnet now gets `403 not_on_guest_network`
+instead of being authorized.
+
+Active VLAN *assignment* (the app moving a device onto a VLAN based on
+which button is clicked, rather than just verifying) was considered and
+rejected: UniFi's authorize action has no VLAN parameter (confirmed
+earlier), and Wi-Fi VLAN membership is fixed at association time in
+general — there's no confirmed way to move an already-connected wireless
+client to a different VLAN without it reconnecting. Don't attempt to
+"route" a device to a VLAN via this app; the VLAN split still has to be
+real SSID→Network bindings done in UniFi, same as everywhere else in this
+section.
+
 **Already done on the UniFi side:** the `ffw-auth` SSID exists (Open
 security, Hotspot application, Captive Portal), and the Hotspot Portal's
 Landing Page redirect URL was being pointed at `https://ffw-auth.gepf.at`

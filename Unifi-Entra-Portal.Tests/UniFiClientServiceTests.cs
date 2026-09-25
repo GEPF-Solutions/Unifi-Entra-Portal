@@ -3,6 +3,7 @@ using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
 using Unifi_Entra_Portal.Server.Infrastructure;
 using Unifi_Entra_Portal.Server.Services;
+using Unifi_Entra_Portal.Server.Services.Abstractions;
 
 namespace Unifi_Entra_Portal.Tests;
 
@@ -15,11 +16,12 @@ public class UniFiClientServiceTests
         ConsoleId = "console-1",
         SiteId = "11111111-1111-1111-1111-111111111111",
         AuthorizeDurationMinutes = 1000000,
+        GuestNetworkCidr = "10.10.60.0/24",
     };
 
-    private static HttpResponseMessage ClientListResponse(string clientId) => new(HttpStatusCode.OK)
+    private static HttpResponseMessage ClientListResponse(string clientId, string? ipAddress = null) => new(HttpStatusCode.OK)
     {
-        Content = System.Net.Http.Json.JsonContent.Create(new { data = new[] { new { id = clientId } } }),
+        Content = System.Net.Http.Json.JsonContent.Create(new { data = new[] { new { id = clientId, ipAddress } } }),
     };
 
     private static HttpResponseMessage EmptyClientListResponse() => new(HttpStatusCode.OK)
@@ -50,18 +52,58 @@ public class UniFiClientServiceTests
     }
 
     [Fact]
-    public async Task AuthorizeGuestAsync_WithExplicitDuration_SendsThatDurationInsteadOfConfiguredDefault()
+    public async Task AuthorizeGuestIfOnGuestNetworkAsync_WhenClientIpIsInsideConfiguredCidr_SendsAuthorizeActionWithExplicitDuration()
     {
-        var handler = new FakeHttpMessageHandler(ClientListResponse("client-uuid-1"), new HttpResponseMessage(HttpStatusCode.OK));
+        var handler = new FakeHttpMessageHandler(ClientListResponse("client-uuid-1", ipAddress: "10.10.60.42"), new HttpResponseMessage(HttpStatusCode.OK));
         var settings = DefaultSettings();
         settings.AuthorizeDurationMinutes = 43200;
         var service = new UniFiClientService(Options.Create(settings), NullLogger<UniFiClientService>.Instance, handler);
 
-        await service.AuthorizeGuestAsync("AA:BB:CC:DD:EE:FF", 1440, CancellationToken.None);
+        await service.AuthorizeGuestIfOnGuestNetworkAsync("AA:BB:CC:DD:EE:FF", 1440, CancellationToken.None);
 
         var action = handler.Requests[1];
         Assert.Contains("\"action\":\"AUTHORIZE_GUEST_ACCESS\"", action.Body);
+        // Explicit duration used, not the (deliberately different) configured AuthorizeDurationMinutes.
         Assert.Contains("\"timeLimitMinutes\":1440", action.Body);
+    }
+
+    [Fact]
+    public async Task AuthorizeGuestIfOnGuestNetworkAsync_WhenClientIpIsOutsideConfiguredCidr_ThrowsAndDoesNotSendAction()
+    {
+        // e.g. a device actually connected to the internal SSID's subnet.
+        var handler = new FakeHttpMessageHandler(ClientListResponse("client-uuid-1", ipAddress: "192.168.12.86"), new HttpResponseMessage(HttpStatusCode.OK));
+        var service = new UniFiClientService(Options.Create(DefaultSettings()), NullLogger<UniFiClientService>.Instance, handler);
+
+        await Assert.ThrowsAsync<GuestNotOnGuestNetworkException>(
+            () => service.AuthorizeGuestIfOnGuestNetworkAsync("AA:BB:CC:DD:EE:FF", 1440, CancellationToken.None));
+
+        Assert.Single(handler.Requests);
+    }
+
+    [Fact]
+    public async Task AuthorizeGuestIfOnGuestNetworkAsync_WhenClientHasNoIpAddress_ThrowsAndDoesNotSendAction()
+    {
+        var handler = new FakeHttpMessageHandler(ClientListResponse("client-uuid-1", ipAddress: null), new HttpResponseMessage(HttpStatusCode.OK));
+        var service = new UniFiClientService(Options.Create(DefaultSettings()), NullLogger<UniFiClientService>.Instance, handler);
+
+        await Assert.ThrowsAsync<GuestNotOnGuestNetworkException>(
+            () => service.AuthorizeGuestIfOnGuestNetworkAsync("AA:BB:CC:DD:EE:FF", 1440, CancellationToken.None));
+
+        Assert.Single(handler.Requests);
+    }
+
+    [Fact]
+    public async Task AuthorizeGuestIfOnGuestNetworkAsync_WhenGuestNetworkCidrIsNotConfigured_ThrowsAndMakesNoRequests()
+    {
+        var handler = new FakeHttpMessageHandler(ClientListResponse("client-uuid-1", ipAddress: "10.10.60.42"), new HttpResponseMessage(HttpStatusCode.OK));
+        var settings = DefaultSettings();
+        settings.GuestNetworkCidr = string.Empty;
+        var service = new UniFiClientService(Options.Create(settings), NullLogger<UniFiClientService>.Instance, handler);
+
+        await Assert.ThrowsAsync<InvalidOperationException>(
+            () => service.AuthorizeGuestIfOnGuestNetworkAsync("AA:BB:CC:DD:EE:FF", 1440, CancellationToken.None));
+
+        Assert.Empty(handler.Requests);
     }
 
     [Fact]

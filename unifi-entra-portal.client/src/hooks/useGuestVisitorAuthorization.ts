@@ -4,8 +4,12 @@ export type GuestVisitorAuthorizationStatus = 'idle' | 'authorizing' | 'authoriz
 
 interface UseGuestVisitorAuthorizationResult {
     status: GuestVisitorAuthorizationStatus;
+    /** When the guest's authorization expires, as reported by the backend. Set once `status` is 'authorized'. */
+    expiresAtUtc: string | null;
     /** Call once the visitor has checked the AGB box and clicked Continue. */
     authorize: (agbAccepted: boolean) => Promise<void>;
+    /** Returns to 'idle', e.g. when the visitor leaves the guest flow (closes an error screen) and might re-enter it later. */
+    reset: () => void;
 }
 
 /**
@@ -21,6 +25,7 @@ interface UseGuestVisitorAuthorizationResult {
  */
 export function useGuestVisitorAuthorization(macAddress: string | null): UseGuestVisitorAuthorizationResult {
     const [status, setStatus] = useState<GuestVisitorAuthorizationStatus>('idle');
+    const [expiresAtUtc, setExpiresAtUtc] = useState<string | null>(null);
 
     const authorize = useCallback(
         async (agbAccepted: boolean) => {
@@ -35,7 +40,13 @@ export function useGuestVisitorAuthorization(macAddress: string | null): UseGues
                     `/api/guest/authorize?mac=${encodeURIComponent(macAddress)}&agbAccepted=${agbAccepted}`,
                     { method: 'POST' },
                 );
-                setStatus(response.ok ? 'authorized' : 'error');
+                if (response.ok) {
+                    const data = await response.json();
+                    setExpiresAtUtc(data.expiresAtUtc ?? null);
+                    setStatus('authorized');
+                } else {
+                    setStatus('error');
+                }
             } catch {
                 setStatus('error');
             }
@@ -43,5 +54,10 @@ export function useGuestVisitorAuthorization(macAddress: string | null): UseGues
         [macAddress],
     );
 
-    return { status, authorize };
+    const reset = useCallback(() => {
+        setStatus('idle');
+        setExpiresAtUtc(null);
+    }, []);
+
+    return { status, expiresAtUtc, authorize, reset };
 }

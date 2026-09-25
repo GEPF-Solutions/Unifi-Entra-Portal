@@ -30,7 +30,7 @@ public class GuestEndpointAuthTests : IClassFixture<WebApplicationFactory<Unifi_
         public Task AuthorizeGuestAsync(string macAddress, CancellationToken cancellationToken) =>
             throw new InvalidOperationException("no real UniFi controller in tests");
 
-        public Task AuthorizeGuestAsync(string macAddress, int durationMinutes, CancellationToken cancellationToken) =>
+        public Task AuthorizeGuestIfOnGuestNetworkAsync(string macAddress, int durationMinutes, CancellationToken cancellationToken) =>
             throw new InvalidOperationException("no real UniFi controller in tests");
 
         public Task UnauthorizeGuestAsync(string macAddress, CancellationToken cancellationToken) =>

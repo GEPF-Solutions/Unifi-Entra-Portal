@@ -2,10 +2,12 @@ using System.Security.Claims;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.Logging.Abstractions;
+using Microsoft.Extensions.Options;
 using Microsoft.Identity.Web;
 using Moq;
 using Unifi_Entra_Portal.Server.Controllers;
 using Unifi_Entra_Portal.Server.Dto;
+using Unifi_Entra_Portal.Server.Infrastructure;
 using Unifi_Entra_Portal.Server.Repository.Abstractions;
 using Unifi_Entra_Portal.Server.Services.Abstractions;
 
@@ -19,12 +21,16 @@ public class PortalControllerTests
         IUniFiClientService uniFiClient,
         IGatingService gatingService,
         IAuthorizedGuestRepository? authorizedGuestRepository = null,
-        string? userObjectId = DefaultUserObjectId)
+        string? userObjectId = DefaultUserObjectId,
+        PortalBrandingSettings? brandingSettings = null,
+        UniFiSettings? uniFiSettings = null)
     {
         var controller = new PortalController(
             uniFiClient,
             gatingService,
             authorizedGuestRepository ?? new Mock<IAuthorizedGuestRepository>().Object,
+            Options.Create(brandingSettings ?? new PortalBrandingSettings()),
+            Options.Create(uniFiSettings ?? new UniFiSettings()),
             NullLogger<PortalController>.Instance);
 
         var claims = userObjectId is null
@@ -135,5 +141,44 @@ public class PortalControllerTests
 
         Assert.IsType<OkObjectResult>(result);
         uniFiClient.Verify(c => c.AuthorizeGuestAsync("aa:bb:cc:dd:ee:ff", It.IsAny<CancellationToken>()), Times.Once);
+    }
+
+    [Fact]
+    public void GetConfig_WhenBrandingUnset_ReturnsNeutralDefaults()
+    {
+        var controller = CreateController(new Mock<IUniFiClientService>().Object, new Mock<IGatingService>().Object);
+
+        var result = Assert.IsType<OkObjectResult>(controller.GetConfig());
+        var dto = Assert.IsType<PortalConfigDto>(result.Value);
+
+        Assert.Equal("Your Organization", dto.OrgName);
+        Assert.Null(dto.LogoUrl);
+        Assert.Null(dto.HeroImageUrl);
+        Assert.Equal("#9184d9", dto.AccentColor);
+    }
+
+    [Fact]
+    public void GetConfig_ReturnsConfiguredBrandingAndDerivedGuestSessionHours()
+    {
+        var brandingSettings = new PortalBrandingSettings
+        {
+            OrgName = "Feuerwehr Fußach",
+            LogoPath = "/branding/logo.png",
+            AccentColor = "#e0695f",
+        };
+        var uniFiSettings = new UniFiSettings { GuestAuthorizeDurationMinutes = 1440 };
+        var controller = CreateController(
+            new Mock<IUniFiClientService>().Object,
+            new Mock<IGatingService>().Object,
+            brandingSettings: brandingSettings,
+            uniFiSettings: uniFiSettings);
+
+        var result = Assert.IsType<OkObjectResult>(controller.GetConfig());
+        var dto = Assert.IsType<PortalConfigDto>(result.Value);
+
+        Assert.Equal("Feuerwehr Fußach", dto.OrgName);
+        Assert.Equal("/branding/logo.png", dto.LogoUrl);
+        Assert.Equal("#e0695f", dto.AccentColor);
+        Assert.Equal(24, dto.GuestSessionHours);
     }
 }

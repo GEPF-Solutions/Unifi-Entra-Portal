@@ -75,7 +75,15 @@ public class GuestController : ControllerBase
 
         try
         {
-            await _uniFiClient.AuthorizeGuestAsync(mac, _uniFiSettings.GuestAuthorizeDurationMinutes, cancellationToken);
+            await _uniFiClient.AuthorizeGuestIfOnGuestNetworkAsync(mac, _uniFiSettings.GuestAuthorizeDurationMinutes, cancellationToken);
+        }
+        catch (GuestNotOnGuestNetworkException ex)
+        {
+            // Not a UniFi failure — a deliberate rejection. Most likely a
+            // device actually connected to the internal SSID trying to
+            // skip Entra sign-in via this anonymous path.
+            _logger.LogWarning(ex, "Guest authorize request for {Mac} rejected: not on the configured guest network", mac);
+            return StatusCode(StatusCodes.Status403Forbidden, new { success = false, error = "not_on_guest_network" });
         }
         catch (Exception ex)
         {
@@ -83,6 +91,11 @@ public class GuestController : ControllerBase
             return StatusCode(StatusCodes.Status502BadGateway, new { success = false, error = "unifi_authorize_failed" });
         }
 
-        return Ok(new { success = true });
+        // Computed here (rather than left for the frontend to derive from
+        // GuestSessionHours) so the Connected screen's "valid until" time
+        // reflects when this authorization actually started, not an
+        // estimate that could drift if the request took a while to process.
+        var expiresAtUtc = DateTime.UtcNow.AddMinutes(_uniFiSettings.GuestAuthorizeDurationMinutes);
+        return Ok(new { success = true, expiresAtUtc });
     }
 }

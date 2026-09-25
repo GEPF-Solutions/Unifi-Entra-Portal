@@ -39,11 +39,27 @@ public class GuestControllerTests
 
         var result = await controller.Authorize(new GuestAgbAuthorizeRequest { Mac = "AA:BB:CC:DD:EE:FF", AgbAccepted = true }, CancellationToken.None);
 
-        Assert.IsType<OkObjectResult>(result);
+        var okResult = Assert.IsType<OkObjectResult>(result);
         // Normalized to lowercase — see GuestController.Authorize.
         uniFiClient.Verify(
-            c => c.AuthorizeGuestAsync("aa:bb:cc:dd:ee:ff", DefaultGuestAuthorizeDurationMinutes, It.IsAny<CancellationToken>()),
+            c => c.AuthorizeGuestIfOnGuestNetworkAsync("aa:bb:cc:dd:ee:ff", DefaultGuestAuthorizeDurationMinutes, It.IsAny<CancellationToken>()),
             Times.Once);
+    }
+
+    [Fact]
+    public async Task Authorize_WhenAgbAccepted_ReturnsExpiryMatchingConfiguredGuestDuration()
+    {
+        var uniFiClient = new Mock<IUniFiClientService>();
+        var controller = CreateController(uniFiClient.Object);
+        var beforeCall = DateTime.UtcNow;
+
+        var result = await controller.Authorize(new GuestAgbAuthorizeRequest { Mac = "AA:BB:CC:DD:EE:FF", AgbAccepted = true }, CancellationToken.None);
+
+        var okResult = Assert.IsType<OkObjectResult>(result);
+        var expiresAtUtc = (DateTime?)okResult.Value?.GetType().GetProperty("expiresAtUtc")?.GetValue(okResult.Value);
+        Assert.NotNull(expiresAtUtc);
+        var expectedExpiry = beforeCall.AddMinutes(DefaultGuestAuthorizeDurationMinutes);
+        Assert.True(Math.Abs((expiresAtUtc!.Value - expectedExpiry).TotalSeconds) < 5);
     }
 
     [Fact]
@@ -56,8 +72,23 @@ public class GuestControllerTests
 
         Assert.IsType<BadRequestObjectResult>(result);
         uniFiClient.Verify(
-            c => c.AuthorizeGuestAsync(It.IsAny<string>(), It.IsAny<int>(), It.IsAny<CancellationToken>()),
+            c => c.AuthorizeGuestIfOnGuestNetworkAsync(It.IsAny<string>(), It.IsAny<int>(), It.IsAny<CancellationToken>()),
             Times.Never);
+    }
+
+    [Fact]
+    public async Task Authorize_WhenNotOnGuestNetwork_ReturnsForbiddenAndDoesNotAuthorize()
+    {
+        var uniFiClient = new Mock<IUniFiClientService>();
+        uniFiClient
+            .Setup(c => c.AuthorizeGuestIfOnGuestNetworkAsync(It.IsAny<string>(), It.IsAny<int>(), It.IsAny<CancellationToken>()))
+            .ThrowsAsync(new GuestNotOnGuestNetworkException("aa:bb:cc:dd:ee:ff"));
+        var controller = CreateController(uniFiClient.Object);
+
+        var result = await controller.Authorize(new GuestAgbAuthorizeRequest { Mac = "AA:BB:CC:DD:EE:FF", AgbAccepted = true }, CancellationToken.None);
+
+        var statusResult = Assert.IsType<ObjectResult>(result);
+        Assert.Equal(StatusCodes.Status403Forbidden, statusResult.StatusCode);
     }
 
     [Fact]
@@ -65,7 +96,7 @@ public class GuestControllerTests
     {
         var uniFiClient = new Mock<IUniFiClientService>();
         uniFiClient
-            .Setup(c => c.AuthorizeGuestAsync(It.IsAny<string>(), It.IsAny<int>(), It.IsAny<CancellationToken>()))
+            .Setup(c => c.AuthorizeGuestIfOnGuestNetworkAsync(It.IsAny<string>(), It.IsAny<int>(), It.IsAny<CancellationToken>()))
             .ThrowsAsync(new InvalidOperationException("no connected client with that MAC"));
         var controller = CreateController(uniFiClient.Object);
 
