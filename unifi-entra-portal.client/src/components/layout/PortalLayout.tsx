@@ -1,4 +1,4 @@
-import type { CSSProperties, PropsWithChildren, ReactNode } from 'react';
+import type { CSSProperties, PropsWithChildren } from 'react';
 import type { PortalConfig } from '../../branding/defaultConfig';
 
 interface PortalLayoutProps extends PropsWithChildren {
@@ -11,8 +11,6 @@ interface PortalLayoutProps extends PropsWithChildren {
      * fills the available height.
      */
     compactHero?: boolean;
-    /** Extra content rendered in the hero's top row, after the logo (e.g. none today — reserved for a future language switcher). */
-    heroTopExtra?: ReactNode;
 }
 
 /**
@@ -22,7 +20,7 @@ interface PortalLayoutProps extends PropsWithChildren {
  * operator's logo/hero image from `config`, falling back to a striped
  * placeholder / no logo when unset.
  */
-export function PortalLayout({ config, compactHero = false, heroTopExtra, children }: PortalLayoutProps) {
+export function PortalLayout({ config, compactHero = false, children }: PortalLayoutProps) {
     return (
         <div className="portal-shell" style={{ '--color-accent': config.accentColor } as CSSProperties}>
             <div className={`portal-hero${compactHero ? ' portal-hero--compact' : ''}`}>
@@ -34,10 +32,18 @@ export function PortalLayout({ config, compactHero = false, heroTopExtra, childr
                             <img className="portal-logo" src={config.logoUrl} alt={config.orgName} />
                         </div>
                     )}
-                    {heroTopExtra}
                 </div>
             </div>
-            <div className="portal-panel">{children}</div>
+            <div className="portal-panel">
+                <div className="portal-panel-content">{children}</div>
+                <div className="portal-credit-footer">
+                    developed by{' '}
+                    <span className="portal-credit-wordmark">
+                        <span className="portal-credit-wordmark-ge">GE</span>
+                        <span className="portal-credit-wordmark-pf">PF</span>
+                    </span>
+                </div>
+            </div>
         </div>
     );
 }

@@ -1,7 +1,6 @@
-import { ArrowLeftIcon } from '../icons/ArrowLeftIcon';
 import { CheckIcon } from '../icons/CheckIcon';
 import { ClockIcon } from '../icons/ClockIcon';
-import { ShieldCheckIcon } from '../icons/ShieldCheckIcon';
+import { XIcon } from '../icons/XIcon';
 
 interface GuestTermsStepProps {
     /** How long guest access lasts, shown in the "valid for" tag. */
@@ -18,10 +17,8 @@ interface GuestTermsStepProps {
     onConnect: () => void;
     /** True while the guest authorize request is in flight. */
     connecting: boolean;
-    /** True if the last guest authorize attempt failed. */
-    hasError: boolean;
-    /** Returns to the Choose step. */
-    onBack: () => void;
+    /** Leaves the guest flow, back to the Choose step. */
+    onClose: () => void;
 }
 
 /**
@@ -37,8 +34,7 @@ export function GuestTermsStep({
     onToggleAgree,
     onConnect,
     connecting,
-    hasError,
-    onBack,
+    onClose,
 }: GuestTermsStepProps) {
     const validForLabel = Number.isInteger(guestSessionHours)
         ? `Valid for ${guestSessionHours} h`
@@ -46,23 +42,20 @@ export function GuestTermsStep({
 
     return (
         <>
-            <button type="button" className="portal-back-btn" onClick={onBack}>
-                <ArrowLeftIcon size={16} />
-                Back
-            </button>
-            <div className="portal-terms-header">
+            <div className="portal-panel-top-row">
                 <div className="portal-kicker">Guest access</div>
-                <h2 className="portal-terms-title">Terms of use</h2>
+                <button type="button" className="portal-panel-icon-btn" onClick={onClose} aria-label="Close">
+                    <XIcon size={18} />
+                </button>
+            </div>
+            <div className="portal-terms-header">
                 <div className="portal-tags">
                     <span className="portal-tag">
-                        <ClockIcon size={12} />
+                        <ClockIcon size={12} className="portal-tag-icon" />
                         {validForLabel}
                     </span>
-                    <span className="portal-tag">
-                        <ShieldCheckIcon size={12} />
-                        Separate guest network
-                    </span>
                 </div>
+                <h2 className="portal-terms-title">Terms of use</h2>
             </div>
             <div className="portal-terms-box">{agbTextLoading ? 'Loading terms…' : (agbText ?? 'Terms of use are not available right now.')}</div>
             <button
@@ -86,7 +79,6 @@ export function GuestTermsStep({
             >
                 Connect
             </button>
-            {hasError && <p className="portal-message">Something went wrong authorizing your device. Please try again.</p>}
         </>
     );
 }

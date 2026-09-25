@@ -60,6 +60,7 @@ public class PortalController : ControllerBase
             AccentColor = _brandingSettings.AccentColor,
             LogoUrl = _brandingSettings.LogoPath,
             LogoPlate = _brandingSettings.LogoPlate,
+            FaviconUrl = _brandingSettings.FaviconPath,
             HeroImageUrl = _brandingSettings.HeroImagePath,
             Headline = _brandingSettings.Headline,
             Intro = _brandingSettings.Intro,
@@ -67,9 +68,9 @@ public class PortalController : ControllerBase
             MemberSubtitle = _brandingSettings.MemberSubtitle,
             GuestTitle = _brandingSettings.GuestTitle,
             GuestSubtitle = _brandingSettings.GuestSubtitle,
-            Footer = _brandingSettings.Footer,
             Tenant = _brandingSettings.Tenant,
             GuestNetworkLabel = _brandingSettings.GuestNetworkLabel,
+            MemberNetworkLabel = _brandingSettings.MemberNetworkLabel,
             GuestSessionHours = _uniFiSettings.GuestAuthorizeDurationMinutes / 60.0,
         });
     }

@@ -24,6 +24,9 @@ public class PortalConfigDto
     /// <summary>Whether to render a light plate behind the logo.</summary>
     public bool LogoPlate { get; set; }
 
+    /// <summary>URL of the browser-tab favicon, or null to show the project's bundled default icon.</summary>
+    public string? FaviconUrl { get; set; }
+
     /// <summary>URL of the hero photo, or null to show a striped placeholder.</summary>
     public string? HeroImageUrl { get; set; }
 
@@ -45,14 +48,14 @@ public class PortalConfigDto
     /// <summary>Subtitle of the anonymous guest choice button.</summary>
     public string GuestSubtitle { get; set; } = string.Empty;
 
-    /// <summary>Footer line shown at the bottom of the Choose step.</summary>
-    public string Footer { get; set; } = string.Empty;
-
     /// <summary>Friendly tenant domain shown in the redirect interstitial's URL chip. Empty hides the chip.</summary>
     public string Tenant { get; set; } = string.Empty;
 
     /// <summary>Label for the network row on the guest Connected screen.</summary>
     public string GuestNetworkLabel { get; set; } = string.Empty;
+
+    /// <summary>Label for the network row on the member Connected screen.</summary>
+    public string MemberNetworkLabel { get; set; } = string.Empty;
 
     /// <summary>
     /// How long an anonymous guest's authorization lasts, in hours. Derived

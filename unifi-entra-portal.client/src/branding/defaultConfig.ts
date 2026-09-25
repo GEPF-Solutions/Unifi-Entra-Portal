@@ -11,6 +11,7 @@ export interface PortalConfig {
     accentColor: string;
     logoUrl: string | null;
     logoPlate: boolean;
+    faviconUrl: string | null;
     heroImageUrl: string | null;
     headline: string;
     intro: string;
@@ -18,9 +19,9 @@ export interface PortalConfig {
     memberSubtitle: string;
     guestTitle: string;
     guestSubtitle: string;
-    footer: string;
     tenant: string;
     guestNetworkLabel: string;
+    memberNetworkLabel: string;
     guestSessionHours: number;
 }
 
@@ -31,6 +32,7 @@ export const defaultPortalConfig: PortalConfig = {
     accentColor: '#9184d9',
     logoUrl: null,
     logoPlate: false,
+    faviconUrl: null,
     heroImageUrl: null,
     headline: 'Welcome to the Wi-Fi',
     intro: "Choose how you'd like to connect.",
@@ -38,8 +40,8 @@ export const defaultPortalConfig: PortalConfig = {
     memberSubtitle: 'Sign in with your organization account',
     guestTitle: 'Guest',
     guestSubtitle: 'Internet access on the guest network',
-    footer: 'Member and guest networks are kept separate.',
     tenant: '',
     guestNetworkLabel: 'Guest network',
+    memberNetworkLabel: 'Member network',
     guestSessionHours: 24,
 };

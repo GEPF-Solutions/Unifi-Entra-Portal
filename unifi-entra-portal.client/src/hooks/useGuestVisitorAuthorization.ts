@@ -8,6 +8,8 @@ interface UseGuestVisitorAuthorizationResult {
     expiresAtUtc: string | null;
     /** Call once the visitor has checked the AGB box and clicked Continue. */
     authorize: (agbAccepted: boolean) => Promise<void>;
+    /** Returns to 'idle', e.g. when the visitor leaves the guest flow (closes an error screen) and might re-enter it later. */
+    reset: () => void;
 }
 
 /**
@@ -52,5 +54,10 @@ export function useGuestVisitorAuthorization(macAddress: string | null): UseGues
         [macAddress],
     );
 
-    return { status, expiresAtUtc, authorize };
+    const reset = useCallback(() => {
+        setStatus('idle');
+        setExpiresAtUtc(null);
+    }, []);
+
+    return { status, expiresAtUtc, authorize, reset };
 }

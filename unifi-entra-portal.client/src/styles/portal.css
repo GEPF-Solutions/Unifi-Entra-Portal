@@ -108,14 +108,20 @@
 }
 
 /* — content panel — */
+/* Two rows: step content (grows to fill available height) and the credit
+   footer (hugs the bottom, always present). Kept as a separate grid row
+   rather than a flex child of the content column so it can't compete with
+   — and potentially break — a step's own bottom-pinning trick (e.g.
+   .portal-secondary-btn's margin-top: auto, or .portal-terms-box's
+   flex: 1): those only ever have to account for .portal-panel-content's
+   own space, never the footer's. */
 .portal-panel {
   position: relative;
   flex: 1 1 auto;
   min-height: 0;
-  display: flex;
-  flex-direction: column;
-  justify-content: flex-start;
-  gap: 22px;
+  display: grid;
+  grid-template-rows: minmax(0, 1fr) auto;
+  row-gap: 22px;
   padding: 0 20px 22px;
   overflow: auto;
 }
@@ -123,9 +129,21 @@
 @media (min-width: 900px) {
   .portal-panel {
     flex: 0 0 480px;
-    justify-content: center;
     padding: 56px 56px 40px 40px;
   }
+}
+
+.portal-panel-content {
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  /* Always pinned to the top — every step either has its own trailing
+     auto-margin/flex:1 element that already claims the leftover space
+     (Connected's Continue button, Terms' growing terms box, Notice/
+     Progress's own margin-bottom: auto header) or, like Choose, has
+     nothing else to pin it, so it needs this explicitly. */
+  justify-content: flex-start;
+  gap: 22px;
 }
 
 /* — choose step — */
@@ -143,6 +161,15 @@
   display: flex;
   flex-direction: column;
   gap: 8px;
+  /* Phone only — matches the other steps' hero-to-top-row gap (see
+     .portal-panel-top-row); the panel has no top padding there. */
+  margin-top: 14px;
+}
+
+@media (min-width: 900px) {
+  .portal-choose-header {
+    margin-top: 0;
+  }
 }
 
 .portal-headline {
@@ -171,6 +198,9 @@
   gap: 10px;
 }
 
+/* Both choice buttons share one look at rest — the accent "primary"
+   treatment they used to be split on now only shows up on hover, uniformly,
+   so neither button reads as pre-selected. */
 .portal-choice-btn {
   display: flex;
   align-items: center;
@@ -183,27 +213,14 @@
   text-align: left;
   cursor: pointer;
   color: var(--color-text);
-  background: none;
-  border: 1px solid transparent;
+  background: var(--color-surface);
+  border: 1px solid var(--color-divider);
 }
 
-.portal-choice-btn--primary {
+.portal-choice-btn:hover {
   border-color: var(--color-accent);
   background: color-mix(in srgb, var(--color-accent) 9%, transparent);
   box-shadow: 0 10px 32px -14px var(--color-accent);
-}
-
-.portal-choice-btn--primary:hover {
-  background: color-mix(in srgb, var(--color-accent) 17%, transparent);
-}
-
-.portal-choice-btn--secondary {
-  border-color: var(--color-divider);
-  background: var(--color-surface);
-}
-
-.portal-choice-btn--secondary:hover {
-  border-color: color-mix(in srgb, var(--color-text) 40%, transparent);
 }
 
 .portal-choice-icon {
@@ -214,16 +231,13 @@
   display: grid;
   place-items: center;
   font-size: 24px;
-}
-
-.portal-choice-icon--primary {
-  color: var(--color-accent);
-  background: color-mix(in srgb, var(--color-accent) 18%, transparent);
-}
-
-.portal-choice-icon--secondary {
   color: var(--color-neutral-300);
   background: var(--color-neutral-800);
+}
+
+.portal-choice-btn:hover .portal-choice-icon {
+  color: var(--color-accent);
+  background: color-mix(in srgb, var(--color-accent) 18%, transparent);
 }
 
 .portal-choice-text {
@@ -244,57 +258,93 @@
   color: color-mix(in srgb, var(--color-text) 62%, transparent);
 }
 
-.portal-choice-arrow--primary {
-  flex: none;
-  font-size: 18px;
-  color: var(--color-accent);
-}
-
-.portal-choice-arrow--secondary {
+.portal-choice-arrow {
   flex: none;
   font-size: 18px;
   color: var(--color-neutral-400);
 }
 
-.portal-footer {
-  margin-top: auto;
-  display: flex;
-  align-items: center;
-  gap: 6px;
+.portal-choice-btn:hover .portal-choice-arrow {
+  color: var(--color-accent);
+}
+
+/* — developer credit —
+   Fixed gepf wordmark, not operator-configurable. Colors/weight are the
+   gepf brand spec, independent of the Nocturne accent system; the navy
+   brand color is deliberately unused here since the portal's own dark
+   background already serves as that backdrop. */
+.portal-credit-footer {
+  text-align: right;
   font-size: 12px;
   color: var(--color-neutral-500);
 }
 
-/* — shared buttons — */
-.portal-back-btn,
-.portal-ghost-btn {
+.portal-credit-wordmark {
+  font-family: 'Unbounded', var(--font-heading);
+  font-weight: 900;
+  font-size: 13px;
+  letter-spacing: 0.01em;
+}
+
+.portal-credit-wordmark-ge {
+  color: #f5f0e8;
+}
+
+.portal-credit-wordmark-pf {
+  color: #f7e04b;
+}
+
+/* — shared kicker + close-button row — used by the guest Terms and member
+   redirect steps, so a step's "leave here" control always lands in the
+   same place. */
+.portal-panel-top-row {
   display: flex;
   align-items: center;
-  gap: 6px;
+  justify-content: space-between;
+  gap: 12px;
+  /* Phone only — the panel has no top padding there (the hero sits flush
+     above it), so this row needs its own breathing room from the hero.
+     Wide layout already has generous panel padding, so no extra needed. */
+  margin-top: 14px;
+  /* Pulls the next block closer than .portal-panel's 22px gap would give it
+     (22 - 14 = 8px) — the kicker reads as one group with what's directly
+     below it, separate from the larger gap down to the headline/title. */
+  margin-bottom: -14px;
+}
+
+@media (min-width: 900px) {
+  .portal-panel-top-row {
+    margin-top: 0;
+  }
+}
+
+/* Icon-only, muted at rest — a "leave this step" control shouldn't outweigh
+   the kicker it shares a row with. */
+.portal-panel-icon-btn {
+  display: grid;
+  place-items: center;
+  flex: none;
+  width: 32px;
+  height: 32px;
+  margin: -6px;
   border: 0;
   border-radius: var(--radius-sm);
   background: transparent;
-  color: var(--color-accent);
-  font: 500 14px var(--font-body);
+  color: var(--color-neutral-400);
   cursor: pointer;
 }
 
-.portal-back-btn {
-  align-self: flex-start;
-  padding: 6px 8px 6px 4px;
-  margin: -6px 0 -8px -4px;
+.portal-panel-icon-btn:hover {
+  color: var(--color-text);
+  background: color-mix(in srgb, var(--color-text) 7%, transparent);
 }
 
-.portal-back-btn:hover,
-.portal-ghost-btn:hover {
-  background: color-mix(in srgb, var(--color-accent) 10%, transparent);
-}
-
-/* — guest terms step — */
 .portal-terms-header {
   display: flex;
   flex-direction: column;
-  gap: 10px;
+  /* Wider than the kicker-to-chip gap above — the chip belongs with the
+     kicker as one group, set apart from the headline below it. */
+  gap: 18px;
 }
 
 .portal-terms-title {
@@ -319,6 +369,11 @@
   border-radius: var(--radius-sm);
   background: var(--color-neutral-800);
   color: var(--color-neutral-100);
+}
+
+.portal-tag-icon {
+  flex: none;
+  color: var(--color-accent);
 }
 
 .portal-terms-box {
@@ -400,40 +455,57 @@
   cursor: not-allowed;
 }
 
-/* — connected step — */
-.portal-success-badge {
+/* — connected step — badge + centered title/body, a success-specific
+   celebration (the Notice step below uses a plainer left-aligned layout,
+   which fits a warning/error message better than a big glowing badge). */
+.portal-icon-badge {
+  align-self: center;
   width: 84px;
   height: 84px;
   border-radius: 50%;
   display: grid;
   place-items: center;
+  font-size: 40px;
+}
+
+.portal-icon-badge--accent {
   border: 1px solid var(--color-accent);
   background: color-mix(in srgb, var(--color-accent) 12%, transparent);
   box-shadow: 0 0 48px -8px var(--color-accent);
   color: var(--color-accent);
-  font-size: 40px;
 }
 
-.portal-connected-header {
+.portal-status-header {
   display: flex;
   flex-direction: column;
   gap: 18px;
-  margin-top: 8px;
+  /* Phone only — extra room for .portal-icon-badge's glow, which otherwise
+     gets clipped by .portal-panel's overflow:auto since it sits this close
+     to the panel's top edge. */
+  margin-top: 32px;
 }
 
-.portal-connected-text {
+@media (min-width: 900px) {
+  .portal-status-header {
+    margin-top: 8px;
+  }
+}
+
+.portal-status-text {
   display: flex;
   flex-direction: column;
+  align-items: center;
   gap: 6px;
+  text-align: center;
 }
 
-.portal-connected-title {
+.portal-status-title {
   font-size: 28px;
   font-weight: 500;
   letter-spacing: -0.02em;
 }
 
-.portal-connected-body {
+.portal-status-body {
   font-size: 15px;
   color: color-mix(in srgb, var(--color-text) 65%, transparent);
 }
@@ -481,36 +553,92 @@
   background: color-mix(in srgb, var(--color-text) 7%, transparent);
 }
 
-/* — member redirect step — */
-.portal-redirect-header {
+/* — progress step (spinner + centered title/body + optional chip) — shared
+   by the member redirect interstitial, the post-sign-in "connecting your
+   device" wait, and the initial session-check loading state. */
+.portal-progress-header {
   display: flex;
   flex-direction: column;
   gap: 20px;
-  margin-top: 8px;
+  /* Counteracts .portal-panel-top-row's -14px margin-bottom (a tight
+     grouping meant for Terms' kicker+chip) — the spinner is a big 84px
+     circle here, not a small chip, and wants more room to breathe. Only
+     relevant when a top row is actually present (kicker and/or close
+     button); harmless extra space otherwise. */
+  margin-top: 24px;
+  /* .portal-panel centers its content on wide layout; without a trailing
+     element to absorb the free space (contrast .portal-secondary-btn's
+     margin-top: auto on the Connected step), the header would center
+     itself instead of sitting just below .portal-panel-top-row. */
+  margin-bottom: auto;
 }
 
-.portal-redirect-text {
+.portal-progress-text {
   display: flex;
   flex-direction: column;
+  align-items: center;
   gap: 8px;
+  text-align: center;
 }
 
-.portal-redirect-title {
+.portal-progress-title {
   font-size: 26px;
   font-weight: 500;
   letter-spacing: -0.015em;
   text-wrap: balance;
 }
 
-.portal-redirect-body {
+.portal-progress-body {
+  font-size: 15px;
+  color: color-mix(in srgb, var(--color-text) 65%, transparent);
+  text-wrap: pretty;
+}
+
+/* — notice step (title + body, no icon) — the missing-device and
+   authorization-failure states. Structurally identical to
+   .portal-terms-header: same title size/weight, same kicker-to-title gap
+   when a .portal-panel-top-row precedes it. .portal-notice-header--standalone
+   is only for the no-kicker cases, where this is the panel's first child
+   instead — matching .portal-choose-header's own hero-gap margin exactly,
+   since there's no top row there to carry it. */
+.portal-notice-header {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  /* .portal-panel centers its content on wide layout; without a trailing
+     element to absorb the free space (same fix as .portal-progress-header),
+     this would center itself instead of pinning to the top like every
+     other step. */
+  margin-bottom: auto;
+}
+
+.portal-notice-header--standalone {
+  margin-top: 14px;
+}
+
+@media (min-width: 900px) {
+  .portal-notice-header--standalone {
+    margin-top: 0;
+  }
+}
+
+.portal-notice-title {
+  font-size: 26px;
+  font-weight: 500;
+  letter-spacing: -0.015em;
+}
+
+.portal-notice-body {
   font-size: 15px;
   color: color-mix(in srgb, var(--color-text) 65%, transparent);
   text-wrap: pretty;
 }
 
 .portal-spinner {
-  width: 56px;
-  height: 56px;
+  align-self: center;
+  /* Matches .portal-icon-badge — the Connected step's badge. */
+  width: 84px;
+  height: 84px;
   border-radius: 50%;
   border: 2px solid color-mix(in srgb, var(--color-accent) 22%, transparent);
   border-top-color: var(--color-accent);
@@ -543,24 +671,9 @@
   color: var(--color-accent);
 }
 
-.portal-ghost-btn {
-  margin-top: auto;
-  align-self: flex-start;
-  padding: 8px 10px;
-  margin-left: -10px;
-}
 
 /* — misc — */
 .portal-message {
   font-size: 15px;
   color: color-mix(in srgb, var(--color-text) 82%, transparent);
-}
-
-.portal-loading {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  min-height: 100vh;
-  background: var(--color-bg);
-  color: var(--color-text);
 }

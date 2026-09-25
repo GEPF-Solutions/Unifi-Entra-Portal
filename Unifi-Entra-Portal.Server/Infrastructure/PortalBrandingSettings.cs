@@ -18,7 +18,7 @@ public class PortalBrandingSettings
     public string Ssid { get; set; } = string.Empty;
 
     /// <summary>Accent color (hex) used throughout the portal UI. Defaults to the design system's neutral accent.</summary>
-    public string AccentColor { get; set; } = "#e0695f";
+    public string AccentColor { get; set; } = "#9184d9";
 
     /// <summary>
     /// URL path to the organization's logo (transparent PNG/SVG recommended),
@@ -29,6 +29,13 @@ public class PortalBrandingSettings
 
     /// <summary>Whether to render a light plate behind the logo — needed for logos with dark lettering.</summary>
     public bool LogoPlate { get; set; }
+
+    /// <summary>
+    /// URL path to the browser-tab favicon, e.g. "/branding/favicon.png".
+    /// Any reasonably square image works — browsers scale it down, no .ico
+    /// needed. Null shows the project's bundled default icon.
+    /// </summary>
+    public string? FaviconPath { get; set; }
 
     /// <summary>
     /// URL path to the hero photo shown on the landing screen, e.g.
@@ -54,9 +61,6 @@ public class PortalBrandingSettings
     /// <summary>Subtitle of the anonymous guest choice button.</summary>
     public string GuestSubtitle { get; set; } = "Internet access on the guest network";
 
-    /// <summary>Footer line shown at the bottom of the Choose step.</summary>
-    public string Footer { get; set; } = "Member and guest networks are kept separate.";
-
     /// <summary>
     /// Friendly tenant domain shown in the redirect interstitial's URL chip
     /// (e.g. "contoso.onmicrosoft.com"). Purely for display — kept separate
@@ -71,6 +75,12 @@ public class PortalBrandingSettings
     /// the VLAN number in the display copy.
     /// </summary>
     public string GuestNetworkLabel { get; set; } = "Guest network";
+
+    /// <summary>
+    /// Label for the network row on the member Connected screen, e.g.
+    /// "Member network" or "Member network · VLAN 10".
+    /// </summary>
+    public string MemberNetworkLabel { get; set; } = "Member network";
 
     /// <summary>
     /// Physical folder branding assets (<see cref="LogoPath"/>,
