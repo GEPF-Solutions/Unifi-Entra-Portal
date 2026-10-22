@@ -64,7 +64,7 @@ public class UniFiClientService : IUniFiClientService, IDisposable
 
         var guestNetwork = IPNetwork.Parse(_settings.GuestNetworkCidr);
 
-        var client = await await FindClientByMacWithRetryAsync(macAddress, cancellationToken)
+        var client = await FindClientByMacWithRetryAsync(macAddress, cancellationToken)
             ?? throw new InvalidOperationException($"No connected UniFi client found with MAC address {macAddress}.");
 
         if (client.IpAddress is null || !IPAddress.TryParse(client.IpAddress, out var clientIp) || !guestNetwork.Contains(clientIp))
