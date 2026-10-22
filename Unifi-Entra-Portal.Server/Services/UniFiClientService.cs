@@ -27,15 +27,18 @@ public class UniFiClientService : IUniFiClientService, IDisposable
     private readonly UniFiSettings _settings;
     private readonly ILogger<UniFiClientService> _logger;
     private readonly HttpClient _client;
+    private readonly TimeSpan _lookupRetryDelay;
 
     /// <param name="handlerOverride">
     /// Substitutes the HTTP transport for tests. Left null in production.
     /// </param>
     public UniFiClientService(
-        IOptions<UniFiSettings> settings,
-        ILogger<UniFiClientService> logger,
-        HttpMessageHandler? handlerOverride = null)
+    IOptions<UniFiSettings> settings,
+    ILogger<UniFiClientService> logger,
+    HttpMessageHandler? handlerOverride = null,
+    TimeSpan? lookupRetryDelay = null)
     {
+    _lookupRetryDelay = lookupRetryDelay ?? TimeSpan.FromSeconds(2);
         _settings = settings.Value;
         _logger = logger;
 
@@ -48,7 +51,7 @@ public class UniFiClientService : IUniFiClientService, IDisposable
 
     /// <inheritdoc />
     public Task AuthorizeGuestAsync(string macAddress, CancellationToken cancellationToken) =>
-        SendGuestActionAsync(macAddress, "AUTHORIZE_GUEST_ACCESS", _settings.AuthorizeDurationMinutes, cancellationToken);
+        SendGuestActionAsync(macAddress, "AUTHORIZE_GUEST_ACCESS", _settings.AuthorizeDurationMinutes, retryLookup: true, cancellationToken);
 
     /// <inheritdoc />
     public async Task AuthorizeGuestIfOnGuestNetworkAsync(string macAddress, int durationMinutes, CancellationToken cancellationToken)
@@ -61,7 +64,7 @@ public class UniFiClientService : IUniFiClientService, IDisposable
 
         var guestNetwork = IPNetwork.Parse(_settings.GuestNetworkCidr);
 
-        var client = await FindClientByMacAsync(_client, macAddress, cancellationToken)
+        var client = await await FindClientByMacWithRetryAsync(macAddress, cancellationToken)
             ?? throw new InvalidOperationException($"No connected UniFi client found with MAC address {macAddress}.");
 
         if (client.IpAddress is null || !IPAddress.TryParse(client.IpAddress, out var clientIp) || !guestNetwork.Contains(clientIp))
@@ -74,7 +77,7 @@ public class UniFiClientService : IUniFiClientService, IDisposable
 
     /// <inheritdoc />
     public Task UnauthorizeGuestAsync(string macAddress, CancellationToken cancellationToken) =>
-        SendGuestActionAsync(macAddress, "UNAUTHORIZE_GUEST_ACCESS", minutes: null, cancellationToken);
+        SendGuestActionAsync(macAddress, "UNAUTHORIZE_GUEST_ACCESS", minutes: null, retryLookup: false, cancellationToken);
 
     /// <inheritdoc />
     public void Dispose()
@@ -83,13 +86,15 @@ public class UniFiClientService : IUniFiClientService, IDisposable
         GC.SuppressFinalize(this);
     }
 
-    private async Task SendGuestActionAsync(string macAddress, string action, int? minutes, CancellationToken cancellationToken)
-    {
-        var client = await FindClientByMacAsync(_client, macAddress, cancellationToken)
-            ?? throw new InvalidOperationException($"No connected UniFi client found with MAC address {macAddress}.");
+    private async Task SendGuestActionAsync(string macAddress, string action, int? minutes, bool retryLookup, CancellationToken cancellationToken)
+{
+    var client = (retryLookup
+        ? await FindClientByMacWithRetryAsync(macAddress, cancellationToken)
+        : await FindClientByMacAsync(_client, macAddress, cancellationToken))
+        ?? throw new InvalidOperationException($"No connected UniFi client found with MAC address {macAddress}.");
 
-        await SendClientActionAsync(client.Id, macAddress, action, minutes, cancellationToken);
-    }
+    await SendClientActionAsync(client.Id, macAddress, action, minutes, cancellationToken);
+}
 
     private async Task SendClientActionAsync(string clientId, string macAddress, string action, int? minutes, CancellationToken cancellationToken)
     {
@@ -123,6 +128,31 @@ public class UniFiClientService : IUniFiClientService, IDisposable
 
         var payload = await response.Content.ReadFromJsonAsync<ClientListResponse>(ResponseJsonOptions, cancellationToken);
         return payload?.Data?.FirstOrDefault();
+    }
+
+    /// <summary>
+    /// Looks up a client by MAC, retrying briefly because UniFi's clients list
+    /// can lag behind a device that has only just joined the network.
+    /// </summary>
+    private async Task<ClientSummary?> FindClientByMacWithRetryAsync(string macAddress, CancellationToken cancellationToken)
+    {
+        const int maxAttempts = 4;
+    
+        for (var attempt = 1; attempt <= maxAttempts; attempt++)
+        {
+            var found = await FindClientByMacAsync(_client, macAddress, cancellationToken);
+            if (found is not null)
+            {
+                return found;
+            }
+    
+            if (attempt < maxAttempts)
+            {
+                await Task.Delay(_lookupRetryDelay, cancellationToken);
+            }
+        }
+    
+        return null;
     }
 
     private string BuildBaseUrl() => _settings.UseCloudConnector
