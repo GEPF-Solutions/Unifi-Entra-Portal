@@ -98,6 +98,12 @@ public class UniFiClientService : IUniFiClientService, IDisposable
             : new { action };
 
         using var response = await _client.PostAsJsonAsync($"v1/sites/{_settings.SiteId}/clients/{clientId}/actions", body, cancellationToken);
+        if (!response.IsSuccessStatusCode)
+        {
+            var responseBody = await response.Content.ReadAsStringAsync(cancellationToken);
+            _logger.LogError("UniFi {Action} for {Mac} failed with {Status}: {Body}", action, macAddress, (int)response.StatusCode, responseBody);
+        }
+
         response.EnsureSuccessStatusCode();
 
         _logger.LogInformation("UniFi {Action} succeeded for {Mac}", action, macAddress);
